@@ -1,6 +1,6 @@
 plugin: google.cloud.gcp_compute
 #Ensure this field points to the local service account json file
-service_account_file: "~/.gcp/gcp-creds.json"
+service_account_file: "/Users/mford/.gcp/gcp-creds.json"
 auth_kind: serviceaccount
 projects:
 #Replace with the name of your project
@@ -15,6 +15,6 @@ hostnames:
 filters:
   - status eq RUNNING
   - labels.application eq k8s
-  - labels.role eq node OR labels.role eq master
+  # - labels.role eq master OR labels.role eq node
 compose:
   ansible_host: networkInterfaces[0].accessConfigs[0].natIP

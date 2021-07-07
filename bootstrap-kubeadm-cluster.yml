@@ -41,28 +41,52 @@
       ansible.builtin.include_role:
         name: geerlingguy.kubernetes
 
-    - name: "Ensure /tmp/{{ cloud_prefix }}-config does not exist"
-      ansible.builtin.file:
+    - name: "Copy master node kubeconfig file to {{working_dir}}/{{ cloud_prefix }}-config"
+      ansible.builtin.copy:
+        remote_src: yes
+        src: /root/.kube/config
+        dest: "/tmp/{{ cloud_prefix }}-config"
+        mode: 0777
+      when: kubernetes_role == 'master'
+
+    - name: Set AWS master node kubeconfig server to Public IP Address
+      ansible.builtin.replace:
         path: "/tmp/{{ cloud_prefix }}-config"
+        regexp: "{{ private_ip_address }}"
+        replace: "{{ public_ip_address}}"
+      when:
+        - kubernetes_role == "master"
+        - cloud_provider == "aws_ec2"
+
+    - name: Set GCP master node kubeconfig server to Public IP Address
+      ansible.builtin.replace:
+        path: "/tmp/{{ cloud_prefix }}-config"
+        regexp: "{{ networkInterfaces[0].networkIP }}"
+        replace: "{{ networkInterfaces[0].accessConfigs[0].natIP }}"
+      when:
+        - kubernetes_role == "master"
+        - cloud_provider == "gcp"
+
+    - name: "Ensure local {{ working_dir }}/{{ cloud_prefix }}-config does not exist"
+      ansible.builtin.file:
+        path: "{{ working_dir }}/{{ cloud_prefix }}-config"
         state: absent
       delegate_to: localhost
       run_once: yes
 
     - name: "Copy master node kubeconfig file to local /tmp/{{ cloud_prefix }}-config"
       ansible.builtin.fetch:
-        src: /root/.kube/config
-        dest: "/tmp/{{ cloud_prefix }}-config"
+        src: "/tmp/{{ cloud_prefix }}-config"
+        dest: "{{ working_dir }}/{{ cloud_prefix }}-config"
         flat: yes
       when: kubernetes_role == 'master'
 
-    - ansible.builtin.debug:
-        msg: "Be sure to change the server in /tmp/{{ cloud_prefix }}-config from {{ private_ip_address }} to {{ public_ip_address }}."
-      when:
-        - kubernetes_role == 'master'
-        - cloud_provider == "aws_ec2"
+    - name: "delete master node kubeconfig at /tmp/{{ cloud_prefix }}-config"
+      ansible.builtin.file:
+        path: "/tmp/{{ cloud_prefix }}-config"
+        state: absent
+      when: kubernetes_role == 'master'
 
-    - ansible.builtin.debug:
-        msg: "Be sure to change the server in /tmp/{{ cloud_prefix }}-config from {{ networkInterfaces[0].networkIP }} to {{ networkInterfaces[0].accessConfigs[0].natIP }}."
-      when:
-        - kubernetes_role == 'master'
-        - cloud_provider == "gcp"
+
+    - name:
+        msg: "The kubeconfig file is on your local workstation at {{ working_dir }}/{{ cloud_prefix }}-config. Change the ownership to a non-root user via chown and place it at the standard kubeconfig location (typically ~.kube/config)." 

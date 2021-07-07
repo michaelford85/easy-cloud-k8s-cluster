@@ -12,17 +12,17 @@
 - name: Copy GCP Terraform Directory
   ansible.builtin.copy:
     src: gcp_deploy
-    dest: /tmp
+    dest: "{{ working_dir }}"
     mode: 0777
 
 - name: Initialize Terraform
   ansible.builtin.command:
     cmd: terraform init
-    chdir: /tmp/gcp_deploy
+    chdir: "{{ working_dir }}/gcp_deploy"
 
 - name: Provision on GCP via Terraform
   community.general.terraform:
-    project_path: /tmp/gcp_deploy
+    project_path: "{{ working_dir }}/gcp_deploy"
     state: present
     variables:
       gcp_key: "{{ gcp_local_credentials_file }}"
@@ -36,7 +36,7 @@
       cloud_master_volume_size: "{{ cloud_master_volume_size }}"
       cloud_worker_volume_size: "{{ cloud_worker_volume_size}}"
   register: terraform_output
-  no_log: true
+  # no_log: true
 
 # - name: Debug Terraform output
 #   ansible.builtin.debug:

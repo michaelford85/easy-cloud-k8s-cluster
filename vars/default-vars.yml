@@ -3,10 +3,10 @@ working_dir: /tmp
 
 #specifies which cloud to deploy resources to
 #acceptable options: aws_ec2, gcp
-cloud_provider: aws_ec2
+cloud_provider: gcp
 
 #The Name prefix placed in front of your cloud resources
-#(instances, firewalls, security groups, etc.) 
+#(instances, firewalls, security groups, etc.)
 cloud_prefix: kubeadm-cluster
 
 #specifies the number of kubernetes worker nodes;
@@ -19,7 +19,7 @@ num_instances: 2
 kubernetes_allow_pods_on_master: no
 
 #The instance size of your worker nodes
-instance_size: xlarge #acceptable options: large, xlarge
+instance_size: large #acceptable options: large, xlarge
 
 #block storage disk size of the master node
 cloud_master_volume_size: 50
@@ -34,7 +34,11 @@ kubernetes_pod_network:
   cidr: '192.168.0.0/24'
 
 #AWS-specific parameters
+
+#Local workstation serviceaccount AWS credentials file
 aws_local_credentials_file: "~/.aws/credentials"
+
+#AWS credentials file profile
 aws_credential_profile: "default"
 ec2_region: us-east-2
 ec2_image_id: ami-00399ec92321828f5 #Ubuntu 20.04
@@ -44,7 +48,11 @@ ec2_vpc_cidr: "192.168.0.0/16"
 aws_instance_username: ubuntu
 
 #GCP parameters
-gcp_local_credentials_file: "/Users/michaelford/.gcp/gcp-creds.json"
+
+#Local workstation serviceaccount gcp json file
+gcp_local_credentials_file: "/Users/mford/.gcp/gcp-creds.json"
+
+#The project referenced in the serviceaccount file
 gcp_project: "eloquent-theme-264620"
 gcp_region: us-central1
 gcp_zone: us-central1-a

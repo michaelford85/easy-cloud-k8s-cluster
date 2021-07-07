@@ -10,12 +10,12 @@
 
     - name: Teardown GCP infrastructure via Terraform
       ansible.builtin.include_role:
-        name: michaelford85.manage_k8s_gcp.manage_nodes
+        name: manage_k8s_nodes_gcp
         tasks_from: teardown_nodes.yml
       when: cloud_provider == "gcp"
 
     - name: Teardown AWS infrastructure via Terraform
       ansible.builtin.include_role:
-        name: michaelford85.manage_k8s_aws.manage_nodes
+        name: manage_k8s_nodes_aws
         tasks_from: teardown_nodes.yml
       when: cloud_provider == "aws_ec2"

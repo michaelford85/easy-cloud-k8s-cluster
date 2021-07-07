@@ -1,7 +1,7 @@
 ---
 - name: Ensure GCP Terraform Directory Exists
   ansible.builtin.stat:
-    path: /tmp/gcp_deploy
+    path: "{{ working_dir }}/gcp_deploy"
   register: gcp_deploy_directory
 
 - name: Teardown GCP infrastructure via Terraform
@@ -9,7 +9,7 @@
     variables:
       gcp_key: "{{ gcp_local_credentials_file }}"
       gcp_project: "{{ gcp_project }}"
-    project_path: /tmp/gcp_deploy
+    project_path: "{{ working_dir }}/gcp_deploy"
     state: absent
   register: terraform_output
   when: gcp_deploy_directory.stat.exists and gcp_deploy_directory.stat.isdir
@@ -22,6 +22,6 @@
 
 - name: delete terraform directory
   ansible.builtin.file:
-    path: /tmp/gcp_deploy
+    path: "{{ working_dir }}/gcp_deploy"
     state: absent
   when: gcp_deploy_directory.stat.exists and gcp_deploy_directory.stat.isdir
