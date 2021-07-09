@@ -1,5 +1,0 @@
-2021-07-09 11:16:11,455 p=74925 u=mford n=ansible | [WARNING]: Failed to load inventory plugin, skipping google.cloud.gcp_compute
-
-2021-07-09 11:16:11,455 p=74925 u=mford n=ansible | [WARNING]: Failed to load inventory plugin, skipping amazon.aws.aws_ec2
-
-2021-07-09 11:16:11,455 p=74925 u=mford n=ansible | ERROR! No inventory plugins available to generate inventory, make sure you have at least one whitelisted.
