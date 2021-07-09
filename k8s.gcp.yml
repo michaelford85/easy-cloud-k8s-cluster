@@ -14,7 +14,6 @@ hostnames:
   - name
 filters:
   - status eq RUNNING
-  - labels.application eq k8s
-  # - labels.role eq master OR labels.role eq node
+  - labels.application eq kubeadm-k8s
 compose:
   ansible_host: networkInterfaces[0].accessConfigs[0].natIP

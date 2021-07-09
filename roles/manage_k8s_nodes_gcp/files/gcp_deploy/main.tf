@@ -79,7 +79,7 @@ resource "google_compute_instance" "k8s-worker-nodes" {
   }
   labels = {
     cluster-name = var.gcp_prefix
-    application = "k8s"
+    application = "kubeadm-k8s"
     role = "node"
     cloud_provider = "gcp"
   }
@@ -108,7 +108,7 @@ resource "google_compute_instance" "k8s-master-nodes" {
   }
   labels = {
     cluster-name = var.gcp_prefix
-    application = "k8s"
+    application = "kubeadm-k8s"
     role = "master"
     cloud_provider = "gcp"
   }

@@ -3,7 +3,7 @@ working_dir: /tmp
 
 #specifies which cloud to deploy resources to
 #acceptable options: aws_ec2, gcp
-cloud_provider: gcp
+cloud_provider: aws_ec2
 
 #The Name prefix placed in front of your cloud resources
 #(instances, firewalls, security groups, etc.)

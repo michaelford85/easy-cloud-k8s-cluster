@@ -8,7 +8,7 @@ resource "aws_vpc" "k8s-vpc" {
   cidr_block = "192.168.0.0/24"
 
   tags = {
-    application  = "k8s"
+    application  = "kubeadm-k8s"
     cluster-name = var.ec2_prefix
     Name = "${var.ec2_prefix}-vpc"
   }
@@ -85,7 +85,7 @@ resource "aws_security_group" "k8s-master-sg" {
   }
 
   tags = {
-    application  = "k8s"
+    application  = "kubeadm-k8s"
     cluster-name = var.ec2_prefix
     Name = "${var.ec2_prefix}-master-sg"
   }
@@ -151,7 +151,7 @@ resource "aws_security_group" "k8s-worker-sg" {
   }
 
   tags = {
-    application  = "k8s"
+    application  = "kubeadm-k8s"
     cluster-name = var.ec2_prefix
     Name = "${var.ec2_prefix}-worker-sg"
   }
@@ -164,7 +164,7 @@ resource "aws_subnet" "k8s-subnet" {
 
   tags = {
     cluster-name = var.ec2_prefix
-    application = "k8s"
+    application = "kubeadm-k8s"
     Name = "${var.ec2_prefix}-subnet"
   }
 }
@@ -174,7 +174,7 @@ resource "aws_internet_gateway" "k8s-igw" {
 
   tags = {
   cluster-name = var.ec2_prefix
-  application = "k8s"
+  application = "kubeadm-k8s"
   Name = "${var.ec2_prefix}-igw"
   }
 }
@@ -189,7 +189,7 @@ resource "aws_default_route_table" "k8s-route-table" {
 
   tags = {
     cluster-name = var.ec2_prefix
-    application = "k8s"
+    application = "kubeadm-k8s"
     Name = "${var.ec2_prefix}-route-table"
   }
 }
@@ -218,7 +218,7 @@ resource "aws_instance" "k8s-worker-nodes" {
   tags = {
     Name = "${var.ec2_prefix}-worker-${count.index + 1}"
     cluster-name = var.ec2_prefix
-    application = "k8s"
+    application = "kubeadm-k8s"
     cloud_provider = "aws"
     role = "node"
   }
@@ -238,7 +238,7 @@ resource "aws_instance" "k8s-master-node" {
   tags = {
     Name = "${var.ec2_prefix}-master"
     cluster-name = var.ec2_prefix
-    application = "k8s"
+    application = "kubeadm-k8s"
     cloud_provider = "aws"
     role = "master"
   }
