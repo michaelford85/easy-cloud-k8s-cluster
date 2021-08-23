@@ -1,0 +1,53 @@
+---
+- name: Grab Nginx Pod IP address
+  hosts: localhost
+  gather_facts: no
+  vars_files:
+    - ./vars/default-vars.yml
+
+  tasks:
+
+    - name: Get a list of all pods from any namespace
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: default
+        name: nginx
+      register: pod_list
+    
+    # - debug: 
+    #     var: pod_list
+
+    - debug: 
+        var: pod_list.resources[0].spec.nodeName
+
+    - name: Gather information about all instances in AZ ap-southeast-2a
+      community.aws.ec2_instance_info:
+        region: "{{ ec2_region }}"
+        filters:
+          private-dns-name: "{{ pod_list.resources[0].spec.nodeName }}.{{ ec2_region }}.compute.internal"
+      register: aws_public_ip
+      when: cloud_provider == "aws_ec2"
+
+    - name: Print Public IP address of the node hosting the nginx POD
+      debug: 
+        msg: "The nginx service can be accessed at http://{{ aws_public_ip.instances[0].public_ip_address }}:30080"
+      when: cloud_provider == "aws_ec2"
+
+    - name: get info on an instance
+      gcp_compute_instance_info:
+        zone: "{{ gcp_zone }}"
+        project: "{{ gcp_project }}"
+        auth_kind: serviceaccount
+        filters:
+          - name = "{{ pod_list.resources[0].spec.nodeName }}"
+        service_account_file: "{{ gcp_local_credentials_file }}"
+      register: gcp_public_ip
+      when: cloud_provider == "gcp"
+
+    - name: Print Public IP address of the node hosting the nginx POD
+      debug: 
+        msg: "The nginx service can be accessed at http://{{ gcp_public_ip.resources[0].networkInterfaces[0].accessConfigs[0].natIP }}:30080"
+      when: cloud_provider == "gcp"
+
+
+
