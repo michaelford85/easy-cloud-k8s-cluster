@@ -1,61 +1,95 @@
 ---
+# This value specifies a location where all artifacts (SSH key pairs, kubeconfig, 
+# terraform state) will be placed when creating your Kubernetes cluster.
 working_dir: /tmp
 
-#specifies which cloud to deploy resources to
-#acceptable options: aws_ec2, gcp
+# This value specifies which public cloud provider to deploy resources to.
+# acceptable options: aws_ec2, gcp
 cloud_provider: aws_ec2
 
-#The Name prefix placed in front of your cloud resources
-#(instances, firewalls, security groups, etc.)
+# This value will be added to the names of all provisioned cloud resources
+# (instances, firewalls, security groups, etc.)
 cloud_prefix: kubeadm-cluster
 
-#specifies the number of kubernetes worker nodes;
+# This value specifies the number of kubernetes WORKER nodes;
 # set to 0 and set kubernetes_allow_pods_on_master to "yes"
 # if you desire a single node k8s cluster
 num_instances: 2
-#By default, a taint is placed on the master node
-#to disallow pods running on it; setting this to "yes"
-#removes that taint. Ideal if you desire a one-node k8s cluster
+
+# This value determines whether or not you allow PODs on the master node.
+# If you’d like to create a single node cluster (very helpful 
+# for saving on cloud costs), set this value to yes and set num_instances to 0.
 kubernetes_allow_pods_on_master: no
 
-#The instance size of your worker nodes
-instance_size: large #acceptable options: large, xlarge
 
-#block storage disk size of the master node
+# This value determines what cloud instance type will be used for the worker nodes.
+# Valid values (and the resulting instance types) are:
+#    large:
+#        AWS: t3.large
+#        GCP: e2-standard-2
+#    xlarge:
+#        AWS: t3.xlarge
+#        GCP: e2-standard-4
+instance_size: large
+
+# This value determines the disk size (in GB) of the master node
 cloud_master_volume_size: 50
 
-#block storage disk size of the worker node(s)
+# This value determines the disk size (in GB) of the worker node(s)
 cloud_worker_volume_size: 100
 
-#global kubernetes settings; regardless of cloud provider
+# Global kubernetes settings; regardless of cloud provider
+
+# This value determines which version of Kubernetes to provision, in 1.XX format
+# A list of all releases can be found here:
+# https://kubernetes.io/releases/
 kubernetes_version: '1.21'
+
 kubernetes_pod_network:
   cni: "weave"
   cidr: '192.168.0.0/24'
 
 #AWS-specific parameters
 
-#Local workstation serviceaccount AWS credentials file
+# If you choose to deploy your cluster to AWS, this variable tells the provisioner
+# where to look for your local AWS Programmatic credentials. If you already have
+# aws-cli installed (not required), these are typically at $HOME/.aws/credentials,
+# but you can specify elsewhere. In order to avoid any confusion, use the absolute path.
 aws_local_credentials_file: "~/.aws/credentials"
 
-#AWS credentials file profile
+# This value specifies the AWS credentials file profile (for if you have more than one set 
+# of AWS programmatic credentials in your credentials file)
 aws_credential_profile: "default"
+
+# This value determines what AWS region to provision resources to.
 ec2_region: us-east-2
-ec2_image_id: ami-00399ec92321828f5 #Ubuntu 20.04
-ec2_wait: yes #wait for newly created instances to reach desired state before returning
+
+# Hard coded Amazon Machine Image for Ubuntu 20.04
+ec2_image_id: ami-00399ec92321828f5 
+
+
+ec2_wait: yes 
 ec2_vpc_subnet: "192.168.0.0/20"
 ec2_vpc_cidr: "192.168.0.0/16"
 aws_instance_username: ubuntu
 
-#GCP parameters
+#GCP-specific parameters
 
 #Local workstation serviceaccount gcp json file
+# If you choose to deploy your cluster to GCP, this variable tells the provisioner
+# where to look for your local GCP ServiceAccount json file. 
+# In order to avoid any confusion, use the absolute path.
 gcp_local_credentials_file: "/Users/mford/.gcp/gcp-creds.json"
 
-#The project referenced in the serviceaccount file
+#The GCP project referenced in the serviceaccount file
 gcp_project: "eloquent-theme-264620"
+
+# These values determine what GCP region/zone to provision resources to.
 gcp_region: us-central1
 gcp_zone: us-central1-a
-gcp_vpc_subnet: 192.168.0.0/28
+
+# Hard coded GCP Image for Ubuntu 20.04
 gcp_disk_image: projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20210623 #Ubuntu 20.04
+
+gcp_vpc_subnet: 192.168.0.0/28
 gcp_instance_username: ubuntu
