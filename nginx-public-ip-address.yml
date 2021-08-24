@@ -12,6 +12,7 @@
         kind: Pod
         namespace: default
         name: nginx
+        # kubeconfig: "~/.kube/config"
       register: pod_list
     
     # - debug: 
