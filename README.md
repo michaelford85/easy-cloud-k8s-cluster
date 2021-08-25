@@ -2,7 +2,9 @@
   <img height="200" title="Kubernetes Logo" src="images/k8s_logo_with_border.png">
 </p>
 
-Automated kubeadm-managed cluster on AWS or GCP.
+Spin up a Kubernetes cluster for your CKA exam in minutes in AWS or GCP.
+
+[Blog Entry on how to use this repository](https://mford.io/posts/easy-kubeadm-k8s-cluster/)
 
 <!-- # Table Of Contents
 - [Kubernetes Certification Motivation and Study Resources](readme/certification_and_study.md)
