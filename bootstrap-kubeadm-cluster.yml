@@ -89,5 +89,5 @@
 
 
     - debug:
-        msg: "The kubeconfig file is on your local workstation at {{ working_dir }}/{{ cloud_prefix }}-config. Change the ownership to a non-root user via chown and place it at the standard kubeconfig location (typically ~/.kube/config)."
+        msg: "The kubeconfig file is on your local workstation at {{ working_dir }}/{{ cloud_prefix }}-config. Set the Kubeconfig environment variable using the command `$ export KUBECONFIG={{ working_dir }}/{{ cloud_prefix }}-config`, after which you can manage the cluster using the kubectl command."
       run_once: yes
