@@ -18,9 +18,9 @@ Changes from geerling.kubernetes role (version 7.1.2):
 - ./tasks/sysctl-setup.yml:
   - added task:
     - ```- name: Ensure br_netfilter is enabled.
-            modprobe:
-              name: br_netfilter
-              state: present
-            when: >
-              ansible_distribution != 'Debian'
-              or ansible_distribution_major_version | int < 10```
+           modprobe:
+             name: br_netfilter
+             state: present
+           when: >
+             ansible_distribution != 'Debian'
+             or ansible_distribution_major_version | int < 10```
