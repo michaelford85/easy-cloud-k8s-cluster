@@ -20,11 +20,11 @@ Changes from geerling.kubernetes role (version 7.1.2):
   - added task:
     - 
       ```
-      - name: Ensure br_netfilter is enabled.
-        modprobe:
-          name: br_netfilter
-          state: present
-        when: >
-          ansible_distribution != 'Debian'
-          or ansible_distribution_major_version | int < 10```
+        - name: Ensure br_netfilter is enabled.
+          modprobe:
+            name: br_netfilter
+            state: present
+          when: >
+            ansible_distribution != 'Debian'
+            or ansible_distribution_major_version | int < 10```
   - [Reference Link](https://github.com/geerlingguy/ansible-role-kubernetes/issues/92?utm_source=pocket_saves)
