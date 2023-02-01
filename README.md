@@ -14,11 +14,12 @@ Spin up a Kubernetes cluster for your CKA exam in minutes in AWS or GCP.
 Changes from geerling.kubernetes role (version 7.1.2):
 - ./tasks/node-setup:
   - added task:
-    - ```- shell: echo '1' > /proc/sys/net/ipv4/ip_forward```
+    ```
+    - shell: echo '1' > /proc/sys/net/ipv4/ip_forward
+    ```
   - [Reference Link](https://www.edureka.co/community/18636/error-while-setting-up-kubernetes)
 - ./tasks/sysctl-setup.yml:
-  - added task:
-    - 
+  - added task: 
       ```
         - name: Ensure br_netfilter is enabled.
           modprobe:
@@ -26,5 +27,6 @@ Changes from geerling.kubernetes role (version 7.1.2):
             state: present
           when: >
             ansible_distribution != 'Debian'
-            or ansible_distribution_major_version | int < 10```
+            or ansible_distribution_major_version | int < 10
+      ```
   - [Reference Link](https://github.com/geerlingguy/ansible-role-kubernetes/issues/92?utm_source=pocket_saves)
