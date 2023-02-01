@@ -10,3 +10,6 @@ Spin up a Kubernetes cluster for your CKA exam in minutes in AWS or GCP.
 - [Kubernetes Certification Motivation and Study Resources](readme/certification_and_study.md)
 - [Building your Kubernetes Cluster for Studying](readme/building_the_cluster.md)
 - [CKAD Exam Tips/Useful Kubernetes Links and Commands](readme/kubernetes_links.md) -->
+
+Changes to make to geerling.kubernetes role:
+

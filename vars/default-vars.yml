@@ -43,10 +43,12 @@ cloud_worker_volume_size: 100
 # This value determines which version of Kubernetes to provision, in 1.XX format
 # A list of all releases can be found here:
 # https://kubernetes.io/releases/
-kubernetes_version: '1.21'
+kubernetes_version: '1.25'
+
+kubernetes_kubeadm_kubelet_config_file_path: '/etc/kubernetes/kubeadm-kubelet-config.yaml'
 
 kubernetes_pod_network:
-  cni: "weave"
+  cni: "calico"
   cidr: '192.168.0.0/24'
 
 #AWS-specific parameters

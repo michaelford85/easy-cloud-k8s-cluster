@@ -1,1 +1,1 @@
-kubernetes_role: master
+kubernetes_role: control_plane

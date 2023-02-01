@@ -33,9 +33,13 @@
       ansible.builtin.include_role:
         name: geerlingguy.pip
 
-    - name: Install Docker on all nodes
+    # - name: Install Docker on all nodes
+    #   ansible.builtin.include_role:
+    #     name: geerlingguy.docker
+
+    - name: Install containerd on all nodes
       ansible.builtin.include_role:
-        name: geerlingguy.docker
+        name: geerlingguy.containerd
 
     - name: Install Kubernetes on all nodes
       ansible.builtin.include_role:
@@ -47,7 +51,7 @@
         src: /root/.kube/config
         dest: "/tmp/{{ cloud_prefix }}-config"
         mode: 0777
-      when: kubernetes_role == 'master'
+      when: kubernetes_role == 'control_plane'
 
     - name: Set AWS master node kubeconfig server to Public IP Address
       ansible.builtin.replace:
@@ -55,7 +59,7 @@
         regexp: "{{ private_ip_address }}"
         replace: "{{ public_ip_address}}"
       when:
-        - kubernetes_role == "master"
+        - kubernetes_role == "control_plane"
         - cloud_provider == "aws_ec2"
 
     - name: Set GCP master node kubeconfig server to Public IP Address
@@ -64,7 +68,7 @@
         regexp: "{{ networkInterfaces[0].networkIP }}"
         replace: "{{ networkInterfaces[0].accessConfigs[0].natIP }}"
       when:
-        - kubernetes_role == "master"
+        - kubernetes_role == "control_plane"
         - cloud_provider == "gcp"
 
     - name: "Ensure local {{ working_dir }}/{{ cloud_prefix }}-config does not exist"
@@ -79,13 +83,13 @@
         src: "/tmp/{{ cloud_prefix }}-config"
         dest: "{{ working_dir }}/{{ cloud_prefix }}-config"
         flat: yes
-      when: kubernetes_role == 'master'
+      when: kubernetes_role == 'control_plane'
 
     - name: "delete master node kubeconfig at /tmp/{{ cloud_prefix }}-config"
       ansible.builtin.file:
         path: "/tmp/{{ cloud_prefix }}-config"
         state: absent
-      when: kubernetes_role == 'master'
+      when: kubernetes_role == 'control_plane'
 
 
     - debug:
