@@ -17,7 +17,8 @@ Changes from geerling.kubernetes role (version 7.1.2):
     - ```- shell: echo '1' > /proc/sys/net/ipv4/ip_forward```
 - ./tasks/sysctl-setup.yml:
   - added task:
-    - ```- name: Ensure br_netfilter is enabled.
+    - ```
+         - name: Ensure br_netfilter is enabled.
            modprobe:
              name: br_netfilter
              state: present
