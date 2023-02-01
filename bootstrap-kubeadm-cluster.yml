@@ -41,9 +41,13 @@
       ansible.builtin.include_role:
         name: geerlingguy.containerd
 
-    - name: Install Kubernetes on all nodes
+    # - name: Install Kubernetes on all nodes
+    #   ansible.builtin.include_role:
+    #     name: geerlingguy.kubernetes
+
+    - name: Install Kubernetes on all nodes using forked kubernetes role
       ansible.builtin.include_role:
-        name: geerlingguy.kubernetes
+        name: ansible-role-kubernetes
 
     - name: "Copy master node kubeconfig file to {{working_dir}}/{{ cloud_prefix }}-config"
       ansible.builtin.copy:
