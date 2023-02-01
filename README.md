@@ -15,6 +15,7 @@ Changes from geerling.kubernetes role (version 7.1.2):
 - ./tasks/node-setup:
   - added task:
     - ```- shell: echo '1' > /proc/sys/net/ipv4/ip_forward```
+  - [Reference Link](https://www.edureka.co/community/18636/error-while-setting-up-kubernetes)
 - ./tasks/sysctl-setup.yml:
   - added task:
     - ```
