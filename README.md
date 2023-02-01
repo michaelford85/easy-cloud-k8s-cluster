@@ -11,5 +11,16 @@ Spin up a Kubernetes cluster for your CKA exam in minutes in AWS or GCP.
 - [Building your Kubernetes Cluster for Studying](readme/building_the_cluster.md)
 - [CKAD Exam Tips/Useful Kubernetes Links and Commands](readme/kubernetes_links.md) -->
 
-Changes to make to geerling.kubernetes role:
-
+Changes from geerling.kubernetes role (version 7.1.2):
+- ./tasks/node-setup:
+  - added task:
+    - ```- shell: echo '1' > /proc/sys/net/ipv4/ip_forward```
+- ./tasks/sysctl-setup.yml:
+  - added task:
+    - ```- name: Ensure br_netfilter is enabled.
+            modprobe:
+              name: br_netfilter
+              state: present
+            when: >
+              ansible_distribution != 'Debian'
+              or ansible_distribution_major_version | int < 10```
