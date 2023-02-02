@@ -15,7 +15,7 @@ Spin up a Kubernetes cluster for your CKA exam in minutes in AWS or GCP.
 ### 2/1/2023 Update:
 
 Switched to a fork of the geerling.kubernetes role due to changes in kubeadm and ansible core.
-[michaelford85/ansible-kubernetes-role repository](https://github.com/michaelford85/ansible-role-kubernetes)
+- [michaelford85/ansible-kubernetes-role repository](https://github.com/michaelford85/ansible-role-kubernetes)
 
 #### Changes from geerling.kubernetes role (version 7.1.2):
 - ./tasks/node-setup:
