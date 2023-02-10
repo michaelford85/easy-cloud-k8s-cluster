@@ -51,6 +51,10 @@ kubernetes_pod_network:
   cni: "calico"
   cidr: '192.168.0.0/24'
 
+#Calico manifest - grab the latest version of the manifest from:
+# https://docs.tigera.io/calico/3.25/getting-started/kubernetes/self-managed-onprem/onpremises#install-calico
+kubernetes_calico_manifest_file: "https://raw.githubusercontent.com/projectcalico/calico/v3.25.0/manifests/calico.yaml"
+
 #AWS-specific parameters
 
 # If you choose to deploy your cluster to AWS, this variable tells the provisioner
