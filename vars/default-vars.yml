@@ -14,7 +14,7 @@ cloud_prefix: kubeadm-cluster
 # This value specifies the number of kubernetes WORKER nodes;
 # set to 0 and set kubernetes_allow_pods_on_master to "yes"
 # if you desire a single node k8s cluster
-num_instances: 2
+num_instances: 1
 
 # This value determines whether or not you allow PODs on the master node.
 # If you’d like to create a single node cluster (very helpful 
@@ -49,7 +49,7 @@ kubernetes_kubeadm_kubelet_config_file_path: '/etc/kubernetes/kubeadm-kubelet-co
 
 kubernetes_pod_network:
   cni: "calico"
-  cidr: '192.168.0.0/24'
+  cidr: '10.0.40.0/24'
 
 #Calico manifest - grab the latest version of the manifest from:
 # https://docs.tigera.io/calico/3.25/getting-started/kubernetes/self-managed-onprem/onpremises#install-calico
