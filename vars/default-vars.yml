@@ -14,12 +14,12 @@ cloud_prefix: kubeadm-cluster
 # This value specifies the number of kubernetes WORKER nodes;
 # set to 0 and set kubernetes_allow_pods_on_master to "yes"
 # if you desire a single node k8s cluster
-num_instances: 1
+num_instances: 0
 
 # This value determines whether or not you allow PODs on the master node.
 # If you’d like to create a single node cluster (very helpful 
 # for saving on cloud costs), set this value to yes and set num_instances to 0.
-kubernetes_allow_pods_on_master: no
+kubernetes_allow_pods_on_master: yes
 
 
 # This value determines what cloud instance type will be used for the worker nodes.
@@ -30,7 +30,7 @@ kubernetes_allow_pods_on_master: no
 #    xlarge:
 #        AWS: t3.xlarge
 #        GCP: e2-standard-4
-instance_size: large
+instance_size: xlarge
 
 # This value determines the disk size (in GB) of the master node
 cloud_master_volume_size: 50
