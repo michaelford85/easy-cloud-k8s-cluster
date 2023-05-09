@@ -20,7 +20,7 @@ resource "google_compute_firewall" "k8s-master-firewall" {
 
   allow {
     protocol = "tcp"
-    ports    = ["22", "6443", "2379", "2380", "10250-10252"]
+    ports    = ["22", "6443", "2379", "2380", "10250-10252", "30000-32767"]
   }
 
   target_tags = ["k8s-role", "master"]
