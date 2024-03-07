@@ -35,7 +35,7 @@
       cloud_master_volume_size: "{{ cloud_master_volume_size }}"
       cloud_worker_volume_size: "{{ cloud_worker_volume_size}}"
   register: terraform_output
-  # no_log: true
+  no_log: true
 
 # - name: Debug Terraform output
 #   ansible.builtin.debug:
