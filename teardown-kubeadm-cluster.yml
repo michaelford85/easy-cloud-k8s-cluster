@@ -4,7 +4,7 @@
   connection: local
   gather_facts: no
   vars_files:
-    - ./vars/default-vars.yml
+    - ["./vars/custom-vars.yml", "./vars/default-vars.yml"]
 
   tasks:
 

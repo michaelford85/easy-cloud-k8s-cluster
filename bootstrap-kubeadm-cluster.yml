@@ -4,8 +4,7 @@
   gather_facts: no
   become: yes
   vars_files:
-    - ./vars/default-vars.yml
-
+    - ["./vars/custom-vars.yml", "./vars/default-vars.yml"]
   tasks:
 
     - name: Wait 600 seconds for SSH connectivity
