@@ -25,8 +25,8 @@
     project_path: /tmp/aws_deploy
     state: present
     variables:
-      aws_key: "{{ aws_local_credentials_file }}"
-      aws_profile: "{{ aws_credential_profile }}"
+      access_key: "{{ aws_access_key }}"
+      secret_key: "{{ aws_secret_key }}"
       ec2_region: "{{ ec2_region }}"
       ec2_prefix: "{{ cloud_prefix }}"
       num_instances: "{{ num_instances }}"
@@ -35,7 +35,7 @@
       cloud_master_volume_size: "{{ cloud_master_volume_size }}"
       cloud_worker_volume_size: "{{ cloud_worker_volume_size}}"
   register: terraform_output
-  no_log: true
+  # no_log: true
 
 # - name: Debug Terraform output
 #   ansible.builtin.debug:
