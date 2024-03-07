@@ -3,4 +3,4 @@
 *.retry
 roles*
 collections*
-log
+./vars/custom-vars.yml
