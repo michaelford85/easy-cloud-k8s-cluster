@@ -1,7 +1,7 @@
 provider "aws" {
   region     = var.ec2_region
-  shared_credentials_file = var.aws_key
-  profile                 = var.aws_profile
+  access_key = var.access_key
+  secret_key = var.secret_key
 }
 
 resource "aws_vpc" "k8s-vpc" {

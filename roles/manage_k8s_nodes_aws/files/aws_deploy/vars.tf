@@ -40,14 +40,14 @@ variable "cloud_worker_volume_size" {
   default     = 10
 }
 
-variable "aws_key" {
-  description = "The local shared aws credentials file"
+variable "access_key" {
+  description = "The access key for the AWS user"
   type        = string
   default     = "xxxx"
 }
 
-variable "aws_profile" {
-  description = "The profile used from the local shared aws credentials file"
+variable "secret_key" {
+  description = "The secret access key for the AWS user"
   type        = string
   default     = "xxxx"
 }
