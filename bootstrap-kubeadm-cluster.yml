@@ -28,6 +28,15 @@
         update_cache: yes
       become: yes
 
+    - name: Ensure br_netfilter is enabled.
+      community.general.modprobe:
+        name: br_netfilter
+        state: present
+
+    - name: Add the br_netfilter module to work across reboot
+      ansible.builtin.shell: |
+        echo br_netfilter > /etc/modules-load.d/br_netfilter.conf
+
     - name: Install pip3 on all nodes
       ansible.builtin.include_role:
         name: geerlingguy.pip
@@ -40,13 +49,13 @@
       ansible.builtin.include_role:
         name: geerlingguy.containerd
 
-    # - name: Install Kubernetes on all nodes
-    #   ansible.builtin.include_role:
-    #     name: geerlingguy.kubernetes
-
-    - name: Install Kubernetes on all nodes using forked kubernetes role
+    - name: Install Kubernetes on all nodes
       ansible.builtin.include_role:
-        name: ansible-role-kubernetes
+        name: geerlingguy.kubernetes
+
+    # - name: Install Kubernetes on all nodes using forked kubernetes role
+    #   ansible.builtin.include_role:
+    #     name: ansible-role-kubernetes
 
     - name: "Copy master node kubeconfig file to {{working_dir}}/{{ cloud_prefix }}-config"
       ansible.builtin.copy:
