@@ -5,7 +5,7 @@ variable "num_instances" {
 }
 
 variable "gcp_disk_image" {
-  description = "The image ID to use for the cloud instance"
+  description = "The image to use for the GCP compute instances (e.g., ubuntu-2204-lts)"
   type        = string
   default     = "xxxx"
 }
@@ -23,19 +23,31 @@ variable "gcp_zone" {
 }
 
 variable "gcp_prefix" {
-  description = "The prefix to place in front of all gcp resources"
+  description = "The prefix to place in front of all GCP resources"
   type        = string
   default     = "ffff"
 }
 
 variable "machine_type" {
-  description = "The instance type to use for the cloud instance"
+  description = "The machine type to use for the Kubernetes worker nodes"
   type        = string
   default     = "xxxx"
 }
 
+variable "master_machine_type" {
+  description = "The machine type to use for the Kubernetes control-plane node"
+  type        = string
+  default     = "e2-standard-4"
+}
+
+variable "gcp_instance_username" {
+  description = "Username to embed in instance SSH metadata (Ubuntu images typically use 'ubuntu')"
+  type        = string
+  default     = "ubuntu"
+}
+
 variable "gcp_key" {
-  description = "The path to the service account key that will be used to authenticate with GCP"
+  description = "Path to the GCP service-account JSON key file used to authenticate with GCP"
   type        = string
   default     = "mmmm"
 }
@@ -46,14 +58,32 @@ variable "gcp_project" {
   default     = "nnnn"
 }
 
+variable "gcp_vpc_cidr" {
+  description = "CIDR block for the Kubernetes VPC network"
+  type        = string
+  default     = "192.168.0.0/16"
+}
+
+variable "gcp_subnet_cidr" {
+  description = "CIDR block for the Kubernetes subnetwork (must be contained within gcp_vpc_cidr)"
+  type        = string
+  default     = "192.168.0.0/20"
+}
+
+variable "gcp_nodeport_cidr" {
+  description = "CIDR allowed to access NodePort services (demo default 0.0.0.0/0; tighten to your /32 for safety)"
+  type        = string
+  default     = "0.0.0.0/0"
+}
+
 variable "cloud_master_volume_size" {
-  description = "The block storage volume size for k8s masters"
+  description = "The boot disk size (GB) for k8s masters"
   type        = number
   default     = 10
 }
 
 variable "cloud_worker_volume_size" {
-  description = "The block storage volume size for k8s workers"
+  description = "The boot disk size (GB) for k8s workers"
   type        = number
   default     = 10
 }

@@ -5,7 +5,7 @@ working_dir: /tmp
 
 # This value specifies which public cloud provider to deploy resources to.
 # acceptable options: aws_ec2, gcp
-cloud_provider: aws_ec2
+cloud_provider: gcp
 
 # This value will be added to the names of all provisioned cloud resources
 # (instances, firewalls, security groups, etc.)
@@ -30,7 +30,8 @@ kubernetes_allow_pods_on_master: no
 #    xlarge:
 #        AWS: t3.xlarge
 #        GCP: e2-standard-4
-instance_size: xlarge
+# instance_size: xlarge
+instance_size: e2-standard-4
 
 # This value determines the disk size (in GB) of the master node
 cloud_master_volume_size: 50
@@ -114,17 +115,18 @@ aws_instance_username: ubuntu
 # If you choose to deploy your cluster to GCP, this variable tells the provisioner
 # where to look for your local GCP ServiceAccount json file. 
 # In order to avoid any confusion, use the absolute path.
-gcp_local_credentials_file: "/Users/mford/.gcp/gcp-creds.json"
+gcp_local_credentials_file: "/Users/michael.ford/.gcp/river-inquiry-256921-50685053a2ed.json"
 
 #The GCP project referenced in the serviceaccount file
-gcp_project: "eloquent-theme-264620"
+gcp_project: "river-inquiry-256921"
 
 # These values determine what GCP region/zone to provision resources to.
 gcp_region: us-central1
 gcp_zone: us-central1-a
 
-# Hard coded GCP Image for Ubuntu 20.04
-gcp_disk_image: projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20210623 #Ubuntu 20.04
+# Hard coded GCP Image for Ubuntu 22.04
+gcp_disk_image: projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts
+
 
 # Subnet CIDR block for GCP VPC network.
 # GCP deployments typically use much smaller subnet ranges than AWS.

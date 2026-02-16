@@ -1,59 +1,132 @@
+terraform {
+  required_version = ">= 1.5.0"
+
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = ">= 5.0.0"
+    }
+    tls = {
+      source  = "hashicorp/tls"
+      version = ">= 4.0.0"
+    }
+    local = {
+      source  = "hashicorp/local"
+      version = ">= 2.0.0"
+    }
+    http = {
+      source  = "hashicorp/http"
+      version = ">= 3.0.0"
+    }
+  }
+}
+
 provider "google" {
-  region     = var.gcp_region
-  project    = var.gcp_project
-  credentials = var.gcp_key
+  project     = var.gcp_project
+  region      = var.gcp_region
+  zone        = var.gcp_zone
+  credentials = file(var.gcp_key)
+}
+
+# Discover the public IP of the machine running terraform/ansible and restrict admin access to it.
+data "http" "my_ip" {
+  url = "https://api.ipify.org"
+}
+
+locals {
+  ansible_ip = "${chomp(data.http.my_ip.response_body)}/32"
 }
 
 resource "google_compute_network" "k8s-vpc" {
-  name = "${var.gcp_prefix}-vpc"
-  auto_create_subnetworks = "false"
+  name                    = "${var.gcp_prefix}-vpc"
+  auto_create_subnetworks = false
 }
-
-
-resource "google_compute_firewall" "k8s-master-firewall" {
-  name        = "${var.gcp_prefix}-master-firewall"
-  network      = google_compute_network.k8s-vpc.name
-
-  allow {
-    protocol = "icmp"
-  }
-
-  allow {
-    protocol = "tcp"
-    ports    = ["22", "6443", "2379", "2380", "10250-10252", "30000-32767"]
-  }
-
-  target_tags = ["k8s-role", "master"]
-}
-
-resource "google_compute_firewall" "k8s-worker-firewall" {
-  name        = "${var.gcp_prefix}-worker-firewall"
-  network      = google_compute_network.k8s-vpc.name
-
-  allow {
-    protocol = "icmp"
-  }
-
-  allow {
-    protocol = "tcp"
-    ports    = ["22", "10250", "30000-32767", "6783-6784"]
-  }
-
-  allow {
-    protocol = "udp"
-    ports    = ["6783-6784"]
-  }
-
-  target_tags = ["k8s-role", "node"]
-}
-
 
 resource "google_compute_subnetwork" "k8s-subnet" {
-  name = "${var.gcp_prefix}-subnet"
-  network = google_compute_network.k8s-vpc.name
-  ip_cidr_range = "192.168.0.0/16"
+  name          = "${var.gcp_prefix}-subnet"
+  network       = google_compute_network.k8s-vpc.id
+  ip_cidr_range = var.gcp_subnet_cidr
+  region        = var.gcp_region
 }
 
+# --- Firewall rules ---
+#
+# Rule structure mirrors the AWS refactor:
+# - east/west: allow all traffic only between cluster nodes (tag-to-tag)
+# - admin: SSH + ICMP only from the machine running terraform/ansible
+# - apiserver: 6443 only from the machine running terraform/ansible
+# - nodeport: optional/demo-friendly access (tunable by gcp_nodeport_cidr)
+
+# 1) Allow all traffic between cluster nodes (east-west) by tag.
+resource "google_compute_firewall" "k8s-internal" {
+  name    = "${var.gcp_prefix}-internal"
+  network = google_compute_network.k8s-vpc.name
+
+  direction = "INGRESS"
+  priority  = 1000
+
+  source_tags = ["k8s-role"]
+  target_tags = ["k8s-role"]
+
+  allow {
+    protocol = "all"
+  }
+}
+
+# 2) Admin access from the Ansible control machine (SSH + ICMP).
+resource "google_compute_firewall" "k8s-admin" {
+  name    = "${var.gcp_prefix}-admin"
+  network = google_compute_network.k8s-vpc.name
+
+  direction = "INGRESS"
+  priority  = 900
+
+  source_ranges = [local.ansible_ip]
+  target_tags   = ["k8s-role"]
+
+  allow {
+    protocol = "icmp"
+  }
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+}
+
+# 3) Kubernetes API server access from the Ansible control machine.
+resource "google_compute_firewall" "k8s-apiserver" {
+  name    = "${var.gcp_prefix}-apiserver"
+  network = google_compute_network.k8s-vpc.name
+
+  direction = "INGRESS"
+  priority  = 910
+
+  source_ranges = [local.ansible_ip]
+  target_tags   = ["master"]
+
+  allow {
+    protocol = "tcp"
+    ports    = ["6443"]
+  }
+}
+
+# 4) NodePort access (demo-friendly). Tighten gcp_nodeport_cidr for safer demos/production.
+resource "google_compute_firewall" "k8s-nodeport" {
+  name    = "${var.gcp_prefix}-nodeport"
+  network = google_compute_network.k8s-vpc.name
+
+  direction = "INGRESS"
+  priority  = 920
+
+  source_ranges = [var.gcp_nodeport_cidr]
+  target_tags   = ["node", "master"]
+
+  allow {
+    protocol = "tcp"
+    ports    = ["30000-32767"]
+  }
+}
 
 resource "tls_private_key" "k8s-tls-private-key" {
   algorithm = "RSA"
@@ -61,28 +134,33 @@ resource "tls_private_key" "k8s-tls-private-key" {
 }
 
 resource "google_compute_instance" "k8s-worker-nodes" {
-  count = var.num_instances
+  count        = var.num_instances
   name         = "${var.gcp_prefix}-worker-${count.index + 1}"
   machine_type = var.machine_type
-  zone = var.gcp_zone
-  tags = ["k8s-role", "node"]
+  zone         = var.gcp_zone
+  tags         = ["k8s-role", "node"]
+
   boot_disk {
     device_name = "${var.gcp_prefix}-worker-disk-${count.index + 1}"
-    auto_delete = "true"
+    auto_delete = true
+
     initialize_params {
-      size = var.cloud_worker_volume_size
+      size  = var.cloud_worker_volume_size
       image = var.gcp_disk_image
     }
   }
+
   metadata = {
-    ssh-keys = "ubuntu:${tls_private_key.k8s-tls-private-key.public_key_openssh} ubuntu"
+    ssh-keys = "${var.gcp_instance_username}:${tls_private_key.k8s-tls-private-key.public_key_openssh}"
   }
+
   labels = {
-    cluster-name = var.gcp_prefix
-    application = "kubeadm-k8s"
-    role = "node"
+    cluster-name   = var.gcp_prefix
+    application    = "kubeadm-k8s"
+    role           = "node"
     cloud_provider = "gcp"
   }
+
   network_interface {
     subnetwork = google_compute_subnetwork.k8s-subnet.name
     access_config {}
@@ -90,28 +168,33 @@ resource "google_compute_instance" "k8s-worker-nodes" {
 }
 
 resource "google_compute_instance" "k8s-master-nodes" {
-  count = 1
+  count        = 1
   name         = "${var.gcp_prefix}-master-${count.index + 1}"
-  machine_type = "e2-standard-4"
-  zone = var.gcp_zone
-  tags = ["k8s-role", "master"]
+  machine_type = var.master_machine_type
+  zone         = var.gcp_zone
+  tags         = ["k8s-role", "master"]
+
   boot_disk {
     device_name = "${var.gcp_prefix}-master-disk-${count.index + 1}"
-    auto_delete = "true"
+    auto_delete = true
+
     initialize_params {
-      size = var.cloud_master_volume_size
+      size  = var.cloud_master_volume_size
       image = var.gcp_disk_image
     }
   }
+
   metadata = {
-    ssh-keys = "ubuntu:${tls_private_key.k8s-tls-private-key.public_key_openssh} ubuntu"
+    ssh-keys = "${var.gcp_instance_username}:${tls_private_key.k8s-tls-private-key.public_key_openssh}"
   }
+
   labels = {
-    cluster-name = var.gcp_prefix
-    application = "kubeadm-k8s"
-    role = "master"
+    cluster-name   = var.gcp_prefix
+    application    = "kubeadm-k8s"
+    role           = "master"
     cloud_provider = "gcp"
   }
+
   network_interface {
     subnetwork = google_compute_subnetwork.k8s-subnet.name
     access_config {}
@@ -119,13 +202,13 @@ resource "google_compute_instance" "k8s-master-nodes" {
 }
 
 resource "local_file" "k8s-local-private-key" {
-    content          = tls_private_key.k8s-tls-private-key.private_key_pem
-    filename         = "/tmp/${var.gcp_prefix}-key-private.pem"
-    file_permission  = "0600"
+  content         = tls_private_key.k8s-tls-private-key.private_key_pem
+  filename        = "/tmp/${var.gcp_prefix}-key-private.pem"
+  file_permission = "0600"
 }
 
 resource "local_file" "k8s-local-public-key" {
-    content          = tls_private_key.k8s-tls-private-key.public_key_openssh
-    filename         = "/tmp/${var.gcp_prefix}-key.pub"
-    file_permission  = "0600"
+  content         = tls_private_key.k8s-tls-private-key.public_key_openssh
+  filename        = "/tmp/${var.gcp_prefix}-key.pub"
+  file_permission = "0600"
 }
