@@ -6,13 +6,37 @@
   vars_files:
     - ./vars/default-vars.yml
 
-  tasks:
+  pre_tasks:
 
     - name: Wait 600 seconds for SSH connectivity
       ansible.builtin.wait_for_connection:
 
     - name: Gather facts
       ansible.builtin.setup:
+
+    - name: Load br_netfilter module
+      modprobe:
+        name: br_netfilter
+        state: present
+
+    - name: Ensure br_netfilter loads on boot
+      copy:
+        dest: /etc/modules-load.d/k8s.conf
+        content: |
+          br_netfilter
+        mode: '0644'
+
+    - name: Set Kubernetes-required sysctls
+      copy:
+        dest: /etc/sysctl.d/99-kubernetes-cri.conf
+        content: |
+          net.bridge.bridge-nf-call-iptables  = 1
+          net.bridge.bridge-nf-call-ip6tables = 1
+          net.ipv4.ip_forward                 = 1
+        mode: '0644'
+
+    - name: Apply sysctl settings
+      command: sysctl --system
 
     - name: Include GCP k8s variables
       ansible.builtin.include_vars:
@@ -24,6 +48,8 @@
         file: ./vars/k8s_vars_aws.yml
       when: cloud_provider == "aws_ec2"
 
+  tasks:
+
     - name: sudo apt-get update
       ansible.builtin.apt:
         update_cache: yes
@@ -33,21 +59,13 @@
       ansible.builtin.include_role:
         name: geerlingguy.pip
 
-    # - name: Install Docker on all nodes
-    #   ansible.builtin.include_role:
-    #     name: geerlingguy.docker
-
     - name: Install containerd on all nodes
       ansible.builtin.include_role:
         name: geerlingguy.containerd
 
-    # - name: Install Kubernetes on all nodes
-    #   ansible.builtin.include_role:
-    #     name: geerlingguy.kubernetes
-
-    - name: Install Kubernetes on all nodes using forked kubernetes role
+    - name: Install Kubernetes
       ansible.builtin.include_role:
-        name: ansible-role-kubernetes
+        name: geerlingguy.kubernetes
 
     - name: "Copy master node kubeconfig file to {{working_dir}}/{{ cloud_prefix }}-config"
       ansible.builtin.copy:

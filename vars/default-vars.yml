@@ -14,12 +14,12 @@ cloud_prefix: kubeadm-cluster
 # This value specifies the number of kubernetes WORKER nodes;
 # set to 0 and set kubernetes_allow_pods_on_master to "yes"
 # if you desire a single node k8s cluster
-num_instances: 0
+num_instances: 4
 
 # This value determines whether or not you allow PODs on the master node.
 # If you’d like to create a single node cluster (very helpful 
 # for saving on cloud costs), set this value to yes and set num_instances to 0.
-kubernetes_allow_pods_on_master: yes
+kubernetes_allow_pods_on_master: no
 
 
 # This value determines what cloud instance type will be used for the worker nodes.
@@ -38,13 +38,17 @@ cloud_master_volume_size: 50
 # This value determines the disk size (in GB) of the worker node(s)
 cloud_worker_volume_size: 100
 
-# Global kubernetes settings; regardless of cloud provider
+##### Global kubernetes settings; regardless of cloud provider #####
 
 # This value determines which version of Kubernetes to provision, in 1.XX format
 # A list of all releases can be found here:
 # https://kubernetes.io/releases/
-kubernetes_version: '1.25'
+kubernetes_version: '1.34'
+kubernetes_version_kubeadm: "v{{ kubernetes_version }}.0"
 
+# Path to the kubeadm-generated kubelet configuration file.
+# This file is created during `kubeadm init` or `kubeadm join` and defines
+# kubelet runtime configuration such as cgroup driver, cluster DNS, etc.
 kubernetes_kubeadm_kubelet_config_file_path: '/etc/kubernetes/kubeadm-kubelet-config.yaml'
 
 kubernetes_pod_network:
@@ -52,10 +56,21 @@ kubernetes_pod_network:
   cidr: '10.0.40.0/24'
 
 #Calico manifest - grab the latest version of the manifest from:
-# https://docs.tigera.io/calico/3.25/getting-started/kubernetes/self-managed-onprem/onpremises#install-calico
-kubernetes_calico_manifest_file: "https://raw.githubusercontent.com/projectcalico/calico/v3.25.0/manifests/calico.yaml"
+kubernetes_calico_manifest_file: "https://raw.githubusercontent.com/projectcalico/calico/v3.31.3/manifests/calico.yaml"
 
-#AWS-specific parameters
+# Additional arguments passed to the `kubeadm join` command.
+# Historically used to suppress specific preflight errors (e.g., Port-10250 in use).
+# NOT recommended for production use — ignoring preflight errors can hide
+# real configuration issues such as stale kubelet state or misconfigured sysctl values.
+kubernetes_join_command_extra_opts: "--ignore-preflight-errors=Port-10250"
+
+# Global kubeadm preflight error suppression.
+# When set to "all", kubeadm will ignore ALL safety checks before initialization/join.
+# Strongly discouraged outside of debugging scenarios. Leaving this enabled
+# may allow a cluster to initialize in a broken or insecure state.
+kubernetes_ignore_preflight_errors: "all"
+
+##### AWS-specific parameters #####
 
 # If you choose to deploy your cluster to AWS, this variable tells the provisioner
 # where to look for your local AWS Programmatic credentials. If you already have
@@ -65,21 +80,35 @@ aws_local_credentials_file: "~/.aws/credentials"
 
 # This value specifies the AWS credentials file profile (for if you have more than one set 
 # of AWS programmatic credentials in your credentials file)
-aws_credential_profile: "default"
+aws_credential_profile: "acct1"
 
 # This value determines what AWS region to provision resources to.
 ec2_region: us-east-2
 
-# Hard coded Amazon Machine Image for Ubuntu 20.04
-ec2_image_id: ami-00399ec92321828f5 
+# Hard coded Amazon Machine Image for Ubuntu 22.04 in us-east-2 region
+ec2_image_id: ami-0503ed50b531cc445
 
 
-ec2_wait: yes 
+# Whether Terraform should wait for EC2 instances to fully initialize
+# before continuing execution. Recommended to keep enabled to avoid
+# SSH timing issues during Ansible provisioning.
+ec2_wait: yes
+
+# Subnet CIDR block for the Kubernetes cluster within the VPC.
+# Worker and control-plane nodes will be provisioned inside this subnet.
+# Must be contained within ec2_vpc_cidr.
 ec2_vpc_subnet: "192.168.0.0/20"
+
+# CIDR block for the entire AWS VPC created for the cluster.
+# All cluster networking (nodes + pod overlay traffic) lives within this range.
+# Ensure this does NOT overlap with your local network or other VPCs.
 ec2_vpc_cidr: "192.168.0.0/16"
+
+# Default SSH username for AWS Ubuntu AMIs.
+# This must match the base image being used (Ubuntu = ubuntu, Amazon Linux = ec2-user).
 aws_instance_username: ubuntu
 
-#GCP-specific parameters
+##### GCP-specific parameters #####
 
 #Local workstation serviceaccount gcp json file
 # If you choose to deploy your cluster to GCP, this variable tells the provisioner
@@ -97,5 +126,11 @@ gcp_zone: us-central1-a
 # Hard coded GCP Image for Ubuntu 20.04
 gcp_disk_image: projects/ubuntu-os-cloud/global/images/ubuntu-2004-focal-v20210623 #Ubuntu 20.04
 
+# Subnet CIDR block for GCP VPC network.
+# GCP deployments typically use much smaller subnet ranges than AWS.
+# Must not overlap with pod CIDR or other internal networks.
 gcp_vpc_subnet: 192.168.0.0/28
+
+# Default SSH username for GCP Ubuntu images.
+# This must match the base image used when provisioning compute instances.
 gcp_instance_username: ubuntu
