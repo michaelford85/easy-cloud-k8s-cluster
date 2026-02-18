@@ -70,6 +70,7 @@ pip install -r requirements.txt
 
 Example `requirements.yml`:
 https://gist.github.com/michaelford85/REPLACE_WITH_REQUIREMENTS_GIST
+<script src="https://gist.github.com/michaelford85/3bb80df2c9607d80e358b53434423afa.js"></script>
 
 ---
 
