@@ -4,3 +4,4 @@
 collections*
 log
 roles*
+vars/custom-vars.yml

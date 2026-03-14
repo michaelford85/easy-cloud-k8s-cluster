@@ -101,11 +101,13 @@ collections:
 
 # Configuration
 
-Edit:
+`vars/default-vars.yml` is an example variable file. Copy it to `vars/custom-vars.yml` and edit that file:
 
+```bash
+cp vars/default-vars.yml vars/custom-vars.yml
 ```
-vars/default-vars.yml
-```
+
+The playbooks will automatically use `vars/custom-vars.yml` if it exists, otherwise they fall back to `vars/default-vars.yml`.
 
 Key variables (updated for current refactor):
 
