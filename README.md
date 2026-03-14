@@ -69,8 +69,33 @@ pip install -r requirements.txt
 ```
 
 Example `requirements.yml`:
-https://gist.github.com/michaelford85/REPLACE_WITH_REQUIREMENTS_GIST
-<script src="https://gist.github.com/michaelford85/3bb80df2c9607d80e358b53434423afa.js"></script>
+
+```
+---
+roles:
+  - name: geerlingguy.docker
+    version: 8.0.0
+  - name: geerlingguy.pip
+    version: 3.1.2
+  - name: geerlingguy.kubernetes
+    version: 8.2.0
+  - name: geerlingguy.containerd
+    version: 1.4.1
+
+collections:
+  - name: amazon.aws
+    version: 11.1.0
+  - name: community.aws
+    version: 11.0.0
+  - name: google.cloud
+    version: 1.11.0
+  - name: community.general
+    version: 12.3.0
+  - name: kubernetes.core
+    version: 6.3.0
+  - name: ansible.posix
+    version: 2.1.0
+```
 
 ---
 
