@@ -322,23 +322,22 @@ ip-192-168-7-35     Ready    <none>          2m22s   v1.34.5
 
 ---
 
-# Install MetalLB (Optional)
+# Install Cloud Controller Manager
 
-[MetalLB](https://metallb.io/) provides a network load-balancer implementation for bare-metal (and kubeadm-provisioned cloud) clusters, enabling `LoadBalancer`-type Kubernetes Services.
+The Cloud Controller Manager (CCM) integrates your kubeadm cluster with the native load-balancing APIs of AWS or GCP. Once installed, `LoadBalancer`-type Kubernetes Services automatically provision a real cloud load balancer and receive a public external IP.
 
-## Configure
+The Terraform provisioning step already handles the prerequisites:
+- **AWS**: an IAM role and instance profile with ELB and EC2 permissions are created and attached to all nodes; VPC, subnet, and instances are tagged with `kubernetes.io/cluster/<cluster-name>: owned`.
+- **GCP**: instances are launched with the `cloud-platform` OAuth scope so the CCM can authenticate via the GCE metadata server. Your GCP service account must have `roles/compute.loadBalancerAdmin` (the default Compute Engine SA has this by default on new projects).
 
-In your `vars/custom-vars.yml`, set the MetalLB version and the IP address range MetalLB will assign to `LoadBalancer` services:
+## CCM versions
+
+CCM versions are set in your vars file. The AWS CCM minor version must match your Kubernetes minor version:
 
 ```yaml
-metallb_version: "v0.14.9"
-
-# Must be IPs within your cluster subnet that are not managed by DHCP.
-# AWS default subnet example (192.168.0.0/20):
-metallb_ip_range: "192.168.0.200-192.168.0.250"
+aws_ccm_version: "v1.34.0"   # must match kubernetes_version minor
+gcp_ccm_version: "v29.0.0"
 ```
-
-> **Note:** MetalLB operates in L2 mode here. On AWS and GCP, gratuitous ARP announcements are suppressed by the cloud network, so L2 mode works for traffic arriving at the node that owns the IP, but failover between nodes depends on cloud-level routing. For production cloud workloads, consider a cloud-native load balancer instead.
 
 ## Run
 
@@ -346,52 +345,25 @@ Pass the appropriate dynamic inventory for your cloud provider:
 
 ```bash
 # AWS
-ansible-playbook install-metallb.yml -i k8s.aws_ec2.yml
+ansible-playbook install-cloud-ccm.yml -i k8s.aws_ec2.yml
 
 # GCP
-ansible-playbook install-metallb.yml -i k8s.gcp.yml
+ansible-playbook install-cloud-ccm.yml -i k8s.gcp.yml
 ```
 
-The playbook installs MetalLB, waits for its pods to become ready, then configures an `IPAddressPool` and `L2Advertisement` using the `metallb_ip_range` from your vars file.
+The playbook deploys the CCM ServiceAccount, ClusterRole, ClusterRoleBinding, and DaemonSet into `kube-system`, then waits for the DaemonSet to be ready.
 
 ## Verify
 
 ```bash
-kubectl get pods -n metallb-system
-kubectl get ipaddresspools -n metallb-system
-```
-
-## Use a LoadBalancer Service
-
-With MetalLB installed, create a `LoadBalancer` service instead of `NodePort`:
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: nginx
-spec:
-  type: LoadBalancer
-  selector:
-    app: nginx
-  ports:
-    - port: 80
-      targetPort: 80
-```
-
-MetalLB will assign an IP from `metallb_ip_range` to `EXTERNAL-IP`:
-
-```bash
-kubectl get svc nginx
-NAME    TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)   AGE
-nginx   LoadBalancer   10.96.120.45    192.168.0.200   80/TCP    30s
+kubectl get pods -n kube-system | grep cloud-controller-manager
 ```
 
 ---
 
-# Test MetalLB with podinfo
+# Test Deployment with podinfo
 
-[podinfo](https://github.com/stefanprodan/podinfo) is a small Go web app built for Kubernetes demos. Each pod returns a JSON response that includes its own hostname, making it easy to confirm that MetalLB assigned an external IP and that traffic is being load-balanced across pods.
+[podinfo](https://github.com/stefanprodan/podinfo) is a small Go web app built for Kubernetes demos. Each pod returns a JSON response that includes its own hostname, making it easy to confirm that the CCM provisioned a real cloud load balancer and that traffic is being distributed across pods.
 
 ## Deploy
 
@@ -411,11 +383,11 @@ kubectl rollout status deployment/podinfo
 kubectl get svc podinfo
 ```
 
-Expected output:
+Expected output (EXTERNAL-IP is the public IP of the cloud load balancer):
 
 ```
-NAME      TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)          AGE
-podinfo   LoadBalancer   10.96.47.12     192.168.0.200   9898:31234/TCP   30s
+NAME      TYPE           CLUSTER-IP      EXTERNAL-IP      PORT(S)          AGE
+podinfo   LoadBalancer   10.96.47.12     203.0.113.42     9898:31234/TCP   30s
 ```
 
 ## Access the deployment
@@ -462,6 +434,8 @@ Expected output showing different pods serving each request:
 ```
 
 You can also open `http://<EXTERNAL-IP>:9898` in a browser to see the podinfo web UI.
+
+> **Note:** It may take 30–60 seconds after applying the service for the cloud load balancer to be provisioned and the `EXTERNAL-IP` to appear.
 
 ---
 
