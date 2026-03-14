@@ -462,16 +462,16 @@ You can also open `http://<EXTERNAL-IP>:9898` in a browser to see the podinfo we
 
 # Teardown
 
-Destroy infrastructure:
+After you’re done with your session, tearing down your cluster takes a single playbook command:
 
 ```bash
-ansible-playbook teardown-kubeadm-cluster.yml
+$ ansible-playbook teardown-kubeadm-cluster.yml
 ```
 
-The teardown playbook first deletes any `LoadBalancer`-type Kubernetes services and waits for the CCM to deprovision the associated cloud load balancers (AWS ELB / GCP Network LB) before running `terraform destroy`. This prevents orphaned load balancer resources and avoids Terraform failures caused by cloud-managed security groups still attached to VPC resources.
+This process should take no more than 2 minutes.
+Destroy infrastructure:
 
-Teardown example:
-https://gist.github.com/michaelford85/REPLACE_WITH_TEARDOWN_GIST
+The teardown playbook first deletes any `LoadBalancer`-type Kubernetes services and waits for the CCM to deprovision the associated cloud load balancers (AWS ELB / GCP Network LB) before running `terraform destroy`. This prevents orphaned load balancer resources and avoids Terraform failures caused by cloud-managed security groups still attached to VPC resources.
 
 ---
 
