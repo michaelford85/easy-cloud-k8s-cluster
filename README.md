@@ -389,54 +389,79 @@ nginx   LoadBalancer   10.96.120.45    192.168.0.200   80/TCP    30s
 
 ---
 
-# Deploy a Test Application
+# Test MetalLB with podinfo
 
-Example NGINX deployment (3 replicas):
+[podinfo](https://github.com/stefanprodan/podinfo) is a small Go web app built for Kubernetes demos. Each pod returns a JSON response that includes its own hostname, making it easy to confirm that MetalLB assigned an external IP and that traffic is being load-balanced across pods.
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: nginx
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: nginx
-  template:
-    metadata:
-      labels:
-        app: nginx
-    spec:
-      containers:
-      - name: nginx
-        image: nginx:1.27
-        ports:
-        - containerPort: 80
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: nginx
-spec:
-  type: NodePort
-  selector:
-    app: nginx
-  ports:
-    - port: 80
-      targetPort: 80
-      nodePort: 30080
-```
-
-Apply:
+## Deploy
 
 ```bash
-kubectl apply -f nginx.yaml
-kubectl get pods -o wide
+kubectl apply -f podinfo.yml
 ```
 
-Example test manifest gist:
-https://gist.github.com/michaelford85/REPLACE_WITH_NGINX_GIST
+## Wait for pods to be ready
+
+```bash
+kubectl rollout status deployment/podinfo
+```
+
+## Check the assigned LoadBalancer IP
+
+```bash
+kubectl get svc podinfo
+```
+
+Expected output:
+
+```
+NAME      TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)          AGE
+podinfo   LoadBalancer   10.96.47.12     192.168.0.200   9898:31234/TCP   30s
+```
+
+## Access the deployment
+
+```bash
+curl http://<EXTERNAL-IP>:9898
+```
+
+Example response:
+
+```json
+{
+  "hostname": "podinfo-6d98f8c7b9-xkqtp",
+  "version": "6.7.0",
+  "revision": "",
+  "color": "#34577c",
+  "logo": "https://raw.githubusercontent.com/stefanprodan/podinfo/gh-pages/cuddle_clap.gif",
+  "message": "greetings from podinfo",
+  "goos": "linux",
+  "goarch": "amd64",
+  "runtime": "go1.24.0",
+  "num_goroutine": "9",
+  "num_cpu": "2"
+}
+```
+
+## Confirm load balancing
+
+Run the following a few times and watch the `hostname` field rotate across pod names:
+
+```bash
+for i in $(seq 1 6); do curl -s http://<EXTERNAL-IP>:9898 | grep hostname; done
+```
+
+Expected output showing different pods serving each request:
+
+```
+  "hostname": "podinfo-6d98f8c7b9-xkqtp",
+  "hostname": "podinfo-6d98f8c7b9-w2pnr",
+  "hostname": "podinfo-6d98f8c7b9-m7vzs",
+  "hostname": "podinfo-6d98f8c7b9-xkqtp",
+  "hostname": "podinfo-6d98f8c7b9-m7vzs",
+  "hostname": "podinfo-6d98f8c7b9-w2pnr",
+```
+
+You can also open `http://<EXTERNAL-IP>:9898` in a browser to see the podinfo web UI.
 
 ---
 
