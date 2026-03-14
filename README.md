@@ -322,6 +322,73 @@ ip-192-168-7-35     Ready    <none>          2m22s   v1.34.5
 
 ---
 
+# Install MetalLB (Optional)
+
+[MetalLB](https://metallb.io/) provides a network load-balancer implementation for bare-metal (and kubeadm-provisioned cloud) clusters, enabling `LoadBalancer`-type Kubernetes Services.
+
+## Configure
+
+In your `vars/custom-vars.yml`, set the MetalLB version and the IP address range MetalLB will assign to `LoadBalancer` services:
+
+```yaml
+metallb_version: "v0.14.9"
+
+# Must be IPs within your cluster subnet that are not managed by DHCP.
+# AWS default subnet example (192.168.0.0/20):
+metallb_ip_range: "192.168.0.200-192.168.0.250"
+```
+
+> **Note:** MetalLB operates in L2 mode here. On AWS and GCP, gratuitous ARP announcements are suppressed by the cloud network, so L2 mode works for traffic arriving at the node that owns the IP, but failover between nodes depends on cloud-level routing. For production cloud workloads, consider a cloud-native load balancer instead.
+
+## Run
+
+Pass the appropriate dynamic inventory for your cloud provider:
+
+```bash
+# AWS
+ansible-playbook install-metallb.yml -i k8s.aws_ec2.yml
+
+# GCP
+ansible-playbook install-metallb.yml -i k8s.gcp.yml
+```
+
+The playbook installs MetalLB, waits for its pods to become ready, then configures an `IPAddressPool` and `L2Advertisement` using the `metallb_ip_range` from your vars file.
+
+## Verify
+
+```bash
+kubectl get pods -n metallb-system
+kubectl get ipaddresspools -n metallb-system
+```
+
+## Use a LoadBalancer Service
+
+With MetalLB installed, create a `LoadBalancer` service instead of `NodePort`:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx
+spec:
+  type: LoadBalancer
+  selector:
+    app: nginx
+  ports:
+    - port: 80
+      targetPort: 80
+```
+
+MetalLB will assign an IP from `metallb_ip_range` to `EXTERNAL-IP`:
+
+```bash
+kubectl get svc nginx
+NAME    TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)   AGE
+nginx   LoadBalancer   10.96.120.45    192.168.0.200   80/TCP    30s
+```
+
+---
+
 # Deploy a Test Application
 
 Example NGINX deployment (3 replicas):
