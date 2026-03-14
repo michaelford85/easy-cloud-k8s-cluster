@@ -250,11 +250,12 @@ aws_instance_username: ubuntu
 
 # Provision Infrastructure
 
-Run:
+After setting up your parameters, provision your instances with a playbook run:
 
-```bash
-ansible-playbook provision-kubeadm-cluster.yml
-```
+`$ ansible-playbook provision-kubeadm-cluster.yml`
+
+This playbook will provision your prescribed instances in your cloud provider, and copy the public/private SSH keys to your `working_dir` (`/tmp` by default).
+
 ## Confirm Cloud Inventory
 
 You can confirm the existence of these instances without even having to log into your cloud provider’s web console, by running the `ansible-inventory` command, and specifying the appropriate dynamic inventory source (found in the repository):
@@ -304,6 +305,8 @@ The bootstrap process will take 2-4 minutes to complete.
 In order to access your Kubernetes cluster via the command line, you can set the `KUBECONFIG` environment variable to point to your newly created `/{{ working_dir }}/{{ cloud_prefix }}-config`. Using the values from our example `custom-vars.yml` file:
 
 `$ export KUBECONFIG=/tmp/kubeadm-cluster-config`
+
+Alternatively, you can copy the `/{{ working_dir }}/{{ cloud_prefix }}-config` file to the locsation `~/.kube/config`; this is the default location that the `kubectl` binary looks to for kubeconfig.
 
 Now you can confirm both ready status of and authentication to the cluster using `kubectl`:
 
