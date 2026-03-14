@@ -98,6 +98,7 @@
         path: "{{ working_dir }}/{{ cloud_prefix }}-config"
         state: absent
       delegate_to: localhost
+      become: no
       run_once: yes
 
     - name: "Copy master node kubeconfig file to local /tmp/{{ cloud_prefix }}-config"

@@ -81,7 +81,7 @@ aws_local_credentials_file: "~/.aws/credentials"
 
 # This value specifies the AWS credentials file profile (for if you have more than one set 
 # of AWS programmatic credentials in your credentials file)
-aws_credential_profile: "acct1"
+aws_credential_profile: "default"
 
 # This value determines what AWS region to provision resources to.
 ec2_region: us-east-2
