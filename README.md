@@ -468,6 +468,8 @@ Destroy infrastructure:
 ansible-playbook teardown-kubeadm-cluster.yml
 ```
 
+The teardown playbook first deletes any `LoadBalancer`-type Kubernetes services and waits for the CCM to deprovision the associated cloud load balancers (AWS ELB / GCP Network LB) before running `terraform destroy`. This prevents orphaned load balancer resources and avoids Terraform failures caused by cloud-managed security groups still attached to VPC resources.
+
 Teardown example:
 https://gist.github.com/michaelford85/REPLACE_WITH_TEARDOWN_GIST
 
