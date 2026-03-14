@@ -128,6 +128,20 @@ resource "google_compute_firewall" "k8s-nodeport" {
   }
 }
 
+# 5) Allow GCP health check probes (35.191.0.0/16, 130.211.0.0/22) to reach
+#    all cluster nodes on any TCP port (covers NodePort health checks).
+resource "google_compute_firewall" "k8s-gcp-healthcheck" {
+  name    = "${var.gcp_prefix}-gcp-healthcheck"
+  network = google_compute_network.k8s-vpc.name
+
+  source_ranges = ["35.191.0.0/16", "130.211.0.0/22"]
+  target_tags   = ["k8s-role"]
+
+  allow {
+    protocol = "tcp"
+  }
+}
+
 resource "tls_private_key" "k8s-tls-private-key" {
   algorithm = "RSA"
   rsa_bits  = 4096
@@ -165,6 +179,10 @@ resource "google_compute_instance" "k8s-worker-nodes" {
     subnetwork = google_compute_subnetwork.k8s-subnet.name
     access_config {}
   }
+
+  service_account {
+    scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+  }
 }
 
 resource "google_compute_instance" "k8s-master-nodes" {
@@ -198,6 +216,10 @@ resource "google_compute_instance" "k8s-master-nodes" {
   network_interface {
     subnetwork = google_compute_subnetwork.k8s-subnet.name
     access_config {}
+  }
+
+  service_account {
+    scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 }
 

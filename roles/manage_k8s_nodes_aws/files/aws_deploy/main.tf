@@ -37,12 +37,15 @@ locals {
 }
 
 resource "aws_vpc" "k8s-vpc" {
-  cidr_block = var.ec2_vpc_cidr
+  cidr_block           = var.ec2_vpc_cidr
+  enable_dns_support   = true
+  enable_dns_hostnames = true
 
   tags = {
-    application  = "kubeadm-k8s"
-    cluster-name = var.ec2_prefix
-    Name         = "${var.ec2_prefix}-vpc"
+    application                              = "kubeadm-k8s"
+    cluster-name                             = var.ec2_prefix
+    Name                                     = "${var.ec2_prefix}-vpc"
+    "kubernetes.io/cluster/${var.ec2_prefix}" = "owned"
   }
 }
 
@@ -191,9 +194,10 @@ resource "aws_security_group" "k8s-worker-sg" {
   }
 
   tags = {
-    application  = "kubeadm-k8s"
-    cluster-name = var.ec2_prefix
-    Name         = "${var.ec2_prefix}-worker-sg"
+    application                              = "kubeadm-k8s"
+    cluster-name                             = var.ec2_prefix
+    Name                                     = "${var.ec2_prefix}-worker-sg"
+    "kubernetes.io/cluster/${var.ec2_prefix}" = "owned"
   }
 }
 
@@ -248,9 +252,11 @@ resource "aws_subnet" "k8s-subnet" {
   map_public_ip_on_launch = true
 
   tags = {
-    cluster-name = var.ec2_prefix
-    application  = "kubeadm-k8s"
-    Name         = "${var.ec2_prefix}-subnet"
+    cluster-name                             = var.ec2_prefix
+    application                              = "kubeadm-k8s"
+    Name                                     = "${var.ec2_prefix}-subnet"
+    "kubernetes.io/cluster/${var.ec2_prefix}" = "owned"
+    "kubernetes.io/role/elb"                 = "1"
   }
 }
 
@@ -303,13 +309,15 @@ resource "aws_instance" "k8s-worker-nodes" {
   }
 
   vpc_security_group_ids = [aws_security_group.k8s-worker-sg.id]
+  iam_instance_profile   = aws_iam_instance_profile.k8s-ccm-instance-profile.name
 
   tags = {
-    Name           = "${var.ec2_prefix}-worker-${count.index + 1}"
-    cluster-name   = var.ec2_prefix
-    application    = "kubeadm-k8s"
-    cloud_provider = "aws"
-    role           = "node"
+    Name                                     = "${var.ec2_prefix}-worker-${count.index + 1}"
+    cluster-name                             = var.ec2_prefix
+    application                              = "kubeadm-k8s"
+    cloud_provider                           = "aws"
+    role                                     = "node"
+    "kubernetes.io/cluster/${var.ec2_prefix}" = "owned"
   }
 }
 
@@ -327,13 +335,15 @@ resource "aws_instance" "k8s-master-node" {
   }
 
   vpc_security_group_ids = [aws_security_group.k8s-master-sg.id]
+  iam_instance_profile   = aws_iam_instance_profile.k8s-ccm-instance-profile.name
 
   tags = {
-    Name           = "${var.ec2_prefix}-master"
-    cluster-name   = var.ec2_prefix
-    application    = "kubeadm-k8s"
-    cloud_provider = "aws"
-    role           = "master"
+    Name                                     = "${var.ec2_prefix}-master"
+    cluster-name                             = var.ec2_prefix
+    application                              = "kubeadm-k8s"
+    cloud_provider                           = "aws"
+    role                                     = "master"
+    "kubernetes.io/cluster/${var.ec2_prefix}" = "owned"
   }
 }
 
@@ -347,4 +357,110 @@ resource "local_file" "k8s-local-public-key" {
   content         = tls_private_key.k8s-tls-private-key.public_key_openssh
   filename        = "/tmp/${var.ec2_prefix}-key.pub"
   file_permission = "0600"
+}
+
+# --- IAM for Cloud Controller Manager ---
+# Grants EC2 instances the permissions the AWS CCM needs to manage
+# load balancers, security group rules, and node lifecycle.
+
+data "aws_iam_policy_document" "k8s-ccm-assume-role" {
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
+    actions = ["sts:AssumeRole"]
+  }
+}
+
+resource "aws_iam_role" "k8s-ccm-role" {
+  name               = "${var.ec2_prefix}-ccm-role"
+  assume_role_policy = data.aws_iam_policy_document.k8s-ccm-assume-role.json
+
+  tags = {
+    application  = "kubeadm-k8s"
+    cluster-name = var.ec2_prefix
+  }
+}
+
+resource "aws_iam_policy" "k8s-ccm-policy" {
+  name        = "${var.ec2_prefix}-ccm-policy"
+  description = "IAM policy for the Kubernetes AWS Cloud Controller Manager"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "autoscaling:DescribeAutoScalingGroups",
+          "autoscaling:DescribeLaunchConfigurations",
+          "autoscaling:DescribeTags",
+          "ec2:DescribeInstances",
+          "ec2:DescribeInstanceTopology",
+          "ec2:DescribeRegions",
+          "ec2:DescribeRouteTables",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeVolumes",
+          "ec2:DescribeAvailabilityZones",
+          "ec2:DescribeVpcs",
+          "ec2:CreateSecurityGroup",
+          "ec2:CreateTags",
+          "ec2:CreateVolume",
+          "ec2:ModifyInstanceAttribute",
+          "ec2:ModifyVolume",
+          "ec2:AttachVolume",
+          "ec2:AuthorizeSecurityGroupIngress",
+          "ec2:DeleteSecurityGroup",
+          "ec2:DeleteVolume",
+          "ec2:DetachVolume",
+          "ec2:RevokeSecurityGroupIngress",
+          "elasticloadbalancing:AddTags",
+          "elasticloadbalancing:AttachLoadBalancerToSubnets",
+          "elasticloadbalancing:ApplySecurityGroupsToLoadBalancer",
+          "elasticloadbalancing:CreateLoadBalancer",
+          "elasticloadbalancing:CreateLoadBalancerPolicy",
+          "elasticloadbalancing:CreateLoadBalancerListeners",
+          "elasticloadbalancing:ConfigureHealthCheck",
+          "elasticloadbalancing:DeleteLoadBalancer",
+          "elasticloadbalancing:DeleteLoadBalancerListeners",
+          "elasticloadbalancing:DescribeLoadBalancers",
+          "elasticloadbalancing:DescribeLoadBalancerAttributes",
+          "elasticloadbalancing:DetachLoadBalancerFromSubnets",
+          "elasticloadbalancing:DeregisterInstancesFromLoadBalancer",
+          "elasticloadbalancing:ModifyLoadBalancerAttributes",
+          "elasticloadbalancing:RegisterInstancesWithLoadBalancer",
+          "elasticloadbalancing:SetLoadBalancerPoliciesForBackendServer",
+          "elasticloadbalancing:CreateListener",
+          "elasticloadbalancing:CreateTargetGroup",
+          "elasticloadbalancing:DeleteListener",
+          "elasticloadbalancing:DeleteTargetGroup",
+          "elasticloadbalancing:DeregisterTargets",
+          "elasticloadbalancing:DescribeListeners",
+          "elasticloadbalancing:DescribeLoadBalancerPolicies",
+          "elasticloadbalancing:DescribeTargetGroups",
+          "elasticloadbalancing:DescribeTargetHealth",
+          "elasticloadbalancing:ModifyListener",
+          "elasticloadbalancing:ModifyTargetGroup",
+          "elasticloadbalancing:RegisterTargets",
+          "elasticloadbalancing:SetLoadBalancerPoliciesOfListener",
+          "iam:CreateServiceLinkedRole",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "k8s-ccm-policy-attach" {
+  role       = aws_iam_role.k8s-ccm-role.name
+  policy_arn = aws_iam_policy.k8s-ccm-policy.arn
+}
+
+resource "aws_iam_instance_profile" "k8s-ccm-instance-profile" {
+  name = "${var.ec2_prefix}-ccm-instance-profile"
+  role = aws_iam_role.k8s-ccm-role.name
 }
