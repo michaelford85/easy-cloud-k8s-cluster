@@ -252,7 +252,7 @@ aws_instance_username: ubuntu
 
 After setting up your parameters, provision your instances with a playbook run:
 
-`$ ansible-playbook provision-kubeadm-cluster.yml`
+`$ GODEBUG=preferIPv4=1  ansible-playbook provision-kubeadm-cluster.yml`
 
 This playbook will provision your prescribed instances in your cloud provider, and copy the public/private SSH keys to your `working_dir` (`/tmp` by default).
 
@@ -296,7 +296,7 @@ Now that the instances are provisioned, you can install Kubernetes. The `bootstr
 
 Again, specify the appropriate dynamic inventory script based on the cloud provider you are using. This is the command based in the AWS-based cluster in this tutorial:
 
-`$ ansible-playbook bootstrap-kubeadm-cluster.yml -i k8s.aws_ec2.yml`
+`$ GODEBUG=preferIPv4=1  ansible-playbook bootstrap-kubeadm-cluster.yml -i k8s.aws_ec2.yml`
 
 The bootstrap process will take 2-4 minutes to complete.
 
@@ -312,13 +312,15 @@ Now you can confirm both ready status of and authentication to the cluster using
 
 ```
 (ansible) ford@infra01:~/git-workspace/easy-cloud-k8s-cluster$ kubectl get node
-NAME                STATUS   ROLES           AGE     VERSION
-ip-192-168-13-127   Ready    control-plane   2m34s   v1.34.5
-ip-192-168-3-131    Ready    <none>          2m22s   v1.34.5
-ip-192-168-5-146    Ready    <none>          2m22s   v1.34.5
-ip-192-168-5-59     Ready    <none>          2m22s   v1.34.5
-ip-192-168-7-35     Ready    <none>          2m22s   v1.34.5
+NAME                                          STATUS   ROLES           AGE     VERSION
+ip-192-168-13-76.us-east-2.compute.internal   Ready    control-plane   4m16s   v1.34.5
+ip-192-168-3-69.us-east-2.compute.internal    Ready    <none>          4m4s    v1.34.5
+ip-192-168-4-14.us-east-2.compute.internal    Ready    <none>          4m3s    v1.34.5
+ip-192-168-6-169.us-east-2.compute.internal   Ready    <none>          4m4s    v1.34.5
+ip-192-168-7-243.us-east-2.compute.internal   Ready    <none>          4m4s    v1.34.5
 ```
+
+> **Note:** Node names include the full EC2 private DNS suffix (e.g., `.us-east-2.compute.internal`). This is required for the Cloud Controller Manager to match Kubernetes nodes to EC2 instances via the AWS API.
 
 ---
 
@@ -351,12 +353,31 @@ ansible-playbook install-cloud-ccm.yml -i k8s.aws_ec2.yml
 ansible-playbook install-cloud-ccm.yml -i k8s.gcp.yml
 ```
 
-The playbook deploys the CCM ServiceAccount, ClusterRole, ClusterRoleBinding, and DaemonSet into `kube-system`, then waits for the DaemonSet to be ready.
+The playbook:
+1. Deploys the CCM ServiceAccount, ClusterRole, ClusterRoleBinding, and DaemonSet into `kube-system`
+2. Waits for the DaemonSet to be ready
+3. Taints all nodes with `node.cloudprovider.kubernetes.io/uninitialized:NoSchedule` — this triggers the CCM's `cloud-node-controller` to initialize each node, look it up in the cloud API, and set its `providerID`
+4. Waits until every node has a `providerID` set before completing
+
+> **Note:** In Kubernetes 1.29+, the `--cloud-provider=external` kubelet flag was removed. The playbook handles this by manually adding the uninitialized taint after the CCM is running, which produces the same result.
 
 ## Verify
 
 ```bash
+# Confirm the CCM pod is running
 kubectl get pods -n kube-system | grep cloud-controller-manager
+
+# Confirm nodes have been initialized with their cloud provider IDs
+kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.providerID}{"\n"}{end}'
+```
+
+Expected output once the CCM has initialized all nodes (AWS):
+```
+ip-192-168-13-76.us-east-2.compute.internal    aws:///us-east-2c/i-070802a212c471126
+ip-192-168-3-69.us-east-2.compute.internal     aws:///us-east-2c/i-0934edbdc53b4a960
+ip-192-168-4-14.us-east-2.compute.internal     aws:///us-east-2c/i-070de744960256b87
+ip-192-168-6-169.us-east-2.compute.internal    aws:///us-east-2c/i-0fb803a1b36c864b8
+ip-192-168-7-243.us-east-2.compute.internal    aws:///us-east-2c/i-03b3b0d7b9287c5e2
 ```
 
 ---
@@ -383,11 +404,11 @@ kubectl rollout status deployment/podinfo
 kubectl get svc podinfo
 ```
 
-Expected output (EXTERNAL-IP is the public IP of the cloud load balancer):
+Expected output — on AWS, `EXTERNAL-IP` is an ELB DNS hostname rather than a bare IP:
 
 ```
-NAME      TYPE           CLUSTER-IP      EXTERNAL-IP      PORT(S)          AGE
-podinfo   LoadBalancer   10.96.47.12     203.0.113.42     9898:31234/TCP   30s
+NAME      TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)          AGE
+podinfo   LoadBalancer   10.96.55.200    a5f8cb13ce37644588614632f2684ed1-1120064067.us-east-2.elb.amazonaws.com   9898:30749/TCP   6s
 ```
 
 ## Access the deployment
@@ -400,16 +421,16 @@ Example response:
 
 ```json
 {
-  "hostname": "podinfo-6d98f8c7b9-xkqtp",
-  "version": "6.7.0",
-  "revision": "",
+  "hostname": "podinfo-7789d5f4c7-pxmxv",
+  "version": "6.11.1",
+  "revision": "0a27dbe40c0f68a6272451a5e1c64d9783e2bc87",
   "color": "#34577c",
   "logo": "https://raw.githubusercontent.com/stefanprodan/podinfo/gh-pages/cuddle_clap.gif",
-  "message": "greetings from podinfo",
+  "message": "greetings from podinfo v6.11.1",
   "goos": "linux",
   "goarch": "amd64",
-  "runtime": "go1.24.0",
-  "num_goroutine": "9",
+  "runtime": "go1.26.1",
+  "num_goroutine": "6",
   "num_cpu": "2"
 }
 ```
@@ -435,7 +456,7 @@ Expected output showing different pods serving each request:
 
 You can also open `http://<EXTERNAL-IP>:9898` in a browser to see the podinfo web UI.
 
-> **Note:** It may take 30–60 seconds after applying the service for the cloud load balancer to be provisioned and the `EXTERNAL-IP` to appear.
+> **Note:** It may take 30–60 seconds after applying the service for the cloud load balancer to be provisioned and the `EXTERNAL-IP` to appear. On AWS, the ELB hostname may take an additional minute to resolve in DNS after it first appears.
 
 ---
 

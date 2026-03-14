@@ -71,6 +71,16 @@ kubernetes_join_command_extra_opts: "--ignore-preflight-errors=Port-10250"
 # may allow a cluster to initialize in a broken or insecure state.
 kubernetes_ignore_preflight_errors: "all"
 
+##### Cloud Controller Manager settings #####
+
+# AWS Cloud Controller Manager version (should match your Kubernetes minor version).
+# See: https://github.com/kubernetes/cloud-provider-aws/releases
+aws_ccm_version: "v1.34.0"
+
+# GCP Cloud Controller Manager version.
+# See: https://github.com/kubernetes/cloud-provider-gcp/releases
+gcp_ccm_version: "v29.0.0"
+
 ##### AWS-specific parameters #####
 
 # If you choose to deploy your cluster to AWS, this variable tells the provisioner
@@ -136,3 +146,4 @@ gcp_vpc_subnet: 192.168.0.0/28
 # Default SSH username for GCP Ubuntu images.
 # This must match the base image used when provisioning compute instances.
 gcp_instance_username: ubuntu
+

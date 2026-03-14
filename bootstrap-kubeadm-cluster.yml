@@ -48,6 +48,20 @@
         file: ./vars/k8s_vars_aws.yml
       when: cloud_provider == "aws_ec2"
 
+    - name: Get EC2 private DNS hostname from instance metadata (AWS only)
+      ansible.builtin.shell: |
+        TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
+          -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+        curl -s -H "X-aws-ec2-metadata-token: $TOKEN" \
+          http://169.254.169.254/latest/meta-data/hostname
+      register: ec2_private_dns
+      when: cloud_provider == "aws_ec2"
+
+    - name: Set hostname to full EC2 private DNS name (AWS only)
+      ansible.builtin.hostname:
+        name: "{{ ec2_private_dns.stdout }}"
+      when: cloud_provider == "aws_ec2"
+
   tasks:
 
     - name: sudo apt-get update
