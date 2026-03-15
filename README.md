@@ -46,9 +46,15 @@ Install locally:
 - Python 3.9+
 - Ansible
 - Terraform >= 1.5
-- kubectl
-- Cloud CLI (aws or gcloud)
-- Cloud credentials configured
+- `kubectl` Command line tool
+- Cloud CLI (`aws` or `gcloud`)
+- Cloud credentials configured:
+  - **AWS**: `~/.aws/credentials` with a valid profile (configure with `aws configure`)
+  - **GCP**: Application Default Credentials — run once before provisioning:
+    ```bash
+    gcloud auth application-default login \
+      --scopes="openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/cloud-platform"
+    ```
 
 ---
 
@@ -265,6 +271,7 @@ GCP: `./k8s.gcp.yml`
 
 An example of the command and output is here:
 ```
+# AWS
 (ansible) ford@infra01:~/git-workspace/easy-cloud-k8s-cluster$ ansible-inventory -i k8s.aws_ec2.yml --graph
 @all:
   |--@ungrouped:
@@ -281,6 +288,18 @@ An example of the command and output is here:
   |  |--kubeadm-cluster-worker-4
   |  |--kubeadm-cluster-worker-3
   |  |--kubeadm-cluster-worker-2
+
+# GCP
+(ansible) ford@infra01:~/git-workspace/easy-cloud-k8s-cluster$ ansible-inventory -i k8s.gcp.yml --graph
+@all:
+  |--@ungrouped:
+  |--@k8s_master:
+  |  |--kubeadm-cluster-master-1
+  |--@k8s_node:
+  |  |--kubeadm-cluster-worker-1
+  |  |--kubeadm-cluster-worker-2
+  |  |--kubeadm-cluster-worker-3
+  |  |--kubeadm-cluster-worker-4
 ```
 
 ---
@@ -294,9 +313,15 @@ Now that the instances are provisioned, you can install Kubernetes. The `bootstr
 - Install the appropriate Kubernetes components on all nodes
 - Copy the kubeconfig file from the master node to your local workstation
 
-Again, specify the appropriate dynamic inventory script based on the cloud provider you are using. This is the command based in the AWS-based cluster in this tutorial:
+Specify the appropriate dynamic inventory for your cloud provider:
 
-`$ GODEBUG=preferIPv4=1  ansible-playbook bootstrap-kubeadm-cluster.yml -i k8s.aws_ec2.yml`
+```bash
+# AWS
+GODEBUG=preferIPv4=1 ansible-playbook bootstrap-kubeadm-cluster.yml -i k8s.aws_ec2.yml
+
+# GCP
+GODEBUG=preferIPv4=1 ansible-playbook bootstrap-kubeadm-cluster.yml -i k8s.gcp.yml
+```
 
 The bootstrap process will take 2-4 minutes to complete.
 
@@ -310,6 +335,7 @@ Alternatively, you can copy the `/{{ working_dir }}/{{ cloud_prefix }}-config` f
 
 Now you can confirm both ready status of and authentication to the cluster using `kubectl`:
 
+AWS:
 ```
 (ansible) ford@infra01:~/git-workspace/easy-cloud-k8s-cluster$ kubectl get node
 NAME                                          STATUS   ROLES           AGE     VERSION
@@ -320,7 +346,20 @@ ip-192-168-6-169.us-east-2.compute.internal   Ready    <none>          4m4s    v
 ip-192-168-7-243.us-east-2.compute.internal   Ready    <none>          4m4s    v1.34.5
 ```
 
-> **Note:** Node names include the full EC2 private DNS suffix (e.g., `.us-east-2.compute.internal`). This is required for the Cloud Controller Manager to match Kubernetes nodes to EC2 instances via the AWS API.
+> **Note (AWS):** Node names include the full EC2 private DNS suffix (e.g., `.us-east-2.compute.internal`). This is required for the Cloud Controller Manager to match Kubernetes nodes to EC2 instances via the AWS API.
+
+GCP:
+```
+(ansible) ford@infra01:~/git-workspace/easy-cloud-k8s-cluster$ kubectl get node
+NAME                       STATUS   ROLES           AGE     VERSION
+kubeadm-cluster-master-1   Ready    control-plane   4m12s   v1.34.5
+kubeadm-cluster-worker-1   Ready    <none>          3m58s   v1.34.5
+kubeadm-cluster-worker-2   Ready    <none>          3m57s   v1.34.5
+kubeadm-cluster-worker-3   Ready    <none>          3m56s   v1.34.5
+kubeadm-cluster-worker-4   Ready    <none>          3m55s   v1.34.5
+```
+
+> **Note (GCP):** Node names match the GCE instance names exactly. The CCM uses these names directly to look up instances in the GCE API — no DNS suffix required.
 
 ---
 
@@ -330,15 +369,15 @@ The Cloud Controller Manager (CCM) integrates your kubeadm cluster with the nati
 
 The Terraform provisioning step already handles the prerequisites:
 - **AWS**: an IAM role and instance profile with ELB and EC2 permissions are created and attached to all nodes; VPC, subnet, and instances are tagged with `kubernetes.io/cluster/<cluster-name>: owned`.
-- **GCP**: instances are launched with the `cloud-platform` OAuth scope so the CCM can authenticate via the GCE metadata server. Your GCP service account must have `roles/compute.loadBalancerAdmin` (the default Compute Engine SA has this by default on new projects).
+- **GCP**: Terraform creates a dedicated `${cloud_prefix}-ccm` GCP service account and grants it three IAM roles: `roles/compute.viewer` (instance and zone lookups), `roles/compute.loadBalancerAdmin` (forwarding rules, target pools, health checks), and `roles/compute.securityAdmin` (firewall rule creation and network policy updates). All cluster instances are launched using this service account with the `cloud-platform` OAuth scope.
 
 ## CCM versions
 
-CCM versions are set in your vars file. The AWS CCM minor version must match your Kubernetes minor version:
+CCM versions are set in your vars file. Both AWS and GCP CCM minor versions should match your Kubernetes minor version:
 
 ```yaml
 aws_ccm_version: "v1.34.0"   # must match kubernetes_version minor
-gcp_ccm_version: "v29.0.0"
+gcp_ccm_version: "v34.2.0"   # must match kubernetes_version minor
 ```
 
 ## Run
@@ -380,6 +419,15 @@ ip-192-168-6-169.us-east-2.compute.internal    aws:///us-east-2c/i-0fb803a1b36c8
 ip-192-168-7-243.us-east-2.compute.internal    aws:///us-east-2c/i-03b3b0d7b9287c5e2
 ```
 
+Expected output once the CCM has initialized all nodes (GCP):
+```
+kubeadm-cluster-master-1     gce://my-gcp-project/us-central1-a/kubeadm-cluster-master-1
+kubeadm-cluster-worker-1     gce://my-gcp-project/us-central1-a/kubeadm-cluster-worker-1
+kubeadm-cluster-worker-2     gce://my-gcp-project/us-central1-a/kubeadm-cluster-worker-2
+kubeadm-cluster-worker-3     gce://my-gcp-project/us-central1-a/kubeadm-cluster-worker-3
+kubeadm-cluster-worker-4     gce://my-gcp-project/us-central1-a/kubeadm-cluster-worker-4
+```
+
 ---
 
 # Test Deployment with podinfo
@@ -404,11 +452,16 @@ kubectl rollout status deployment/podinfo
 kubectl get svc podinfo
 ```
 
-Expected output — on AWS, `EXTERNAL-IP` is an ELB DNS hostname rather than a bare IP:
+Expected output — on AWS, `EXTERNAL-IP` is an ELB DNS hostname; on GCP it is a bare IP:
 
 ```
+# AWS
 NAME      TYPE           CLUSTER-IP      EXTERNAL-IP                                                               PORT(S)          AGE
 podinfo   LoadBalancer   10.96.55.200    a5f8cb13ce37644588614632f2684ed1-1120064067.us-east-2.elb.amazonaws.com   9898:30749/TCP   6s
+
+# GCP
+NAME      TYPE           CLUSTER-IP       EXTERNAL-IP     PORT(S)          AGE
+podinfo   LoadBalancer   10.106.188.200   35.194.31.15    9898:32015/TCP   2m
 ```
 
 ## Access the deployment

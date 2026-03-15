@@ -232,6 +232,9 @@
               - apiGroups: [""]
                 resources: [endpoints]
                 verbs: [create, get, list, update, watch]
+              - apiGroups: [""]
+                resources: [configmaps]
+                verbs: [create, get, list, update, watch]
               - apiGroups: [coordination.k8s.io]
                 resources: [leases]
                 verbs: [create, get, list, update, watch]
@@ -251,6 +254,23 @@
               - kind: ServiceAccount
                 name: cloud-controller-manager
                 namespace: kube-system
+              EOF
+
+        - name: Apply GCP CCM cloud-config ConfigMap
+          ansible.builtin.shell:
+            cmd: |
+              kubectl apply -f - <<'EOF'
+              apiVersion: v1
+              kind: ConfigMap
+              metadata:
+                name: gce-config
+                namespace: kube-system
+              data:
+                gce.conf: |
+                  [global]
+                  project-id = {{ gcp_project }}
+                  network-name = {{ cloud_prefix }}-vpc
+                  node-tags = k8s-role
               EOF
 
         - name: Apply GCP CCM DaemonSet
@@ -292,9 +312,9 @@
                       command: [/cloud-controller-manager]
                       args:
                       - --v=2
-                      - --cloud-provider=gcp
-                      - --node-tags=k8s-role
-                      - --controllers=*,-route
+                      - --cloud-provider=gce
+                      - --cloud-config=/etc/gce/gce.conf
+                      - --controllers=*,-route,-node-ipam-controller
                       resources:
                         requests:
                           cpu: 200m
@@ -302,10 +322,16 @@
                       - mountPath: /etc/kubernetes/pki
                         name: k8s-certs
                         readOnly: true
+                      - mountPath: /etc/gce
+                        name: gce-config
+                        readOnly: true
                     volumes:
                     - hostPath:
                         path: /etc/kubernetes/pki
                       name: k8s-certs
+                    - configMap:
+                        name: gce-config
+                      name: gce-config
               EOF
 
         - name: Wait for GCP CCM DaemonSet to be ready

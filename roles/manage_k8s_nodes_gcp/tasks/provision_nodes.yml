@@ -1,13 +1,7 @@
 ---
-- name: Set Worker Machine Type to large
+- name: Map instance_size shorthand to GCP machine type
   ansible.builtin.set_fact:
-    machine_type: e2-standard-2
-  when: instance_size == "large"
-
-- name: Set Worker Machine Type to xlarge
-  ansible.builtin.set_fact:
-    machine_type: e2-standard-4
-  when: instance_size == "xlarge"
+    gcp_machine_type: "{{ {'large': 'e2-standard-2', 'xlarge': 'e2-standard-4'}.get(instance_size, instance_size) }}"
 
 - name: Copy GCP Terraform Directory
   ansible.builtin.copy:
@@ -25,19 +19,18 @@
     project_path: "{{ working_dir }}/gcp_deploy"
     state: present
     variables:
-      gcp_key: "{{ gcp_local_credentials_file }}"
       gcp_project: "{{ gcp_project }}"
       gcp_region: "{{ gcp_region }}"
       gcp_zone: "{{ gcp_zone }}"
       gcp_prefix: "{{ cloud_prefix }}"
       gcp_instance_username: "{{ gcp_instance_username | default('ubuntu') }}"
-      master_machine_type: "{{ instance_size | default('e2-standard-4') }}"
+      master_machine_type: "{{ gcp_machine_type }}"
       gcp_vpc_cidr: "{{ gcp_vpc_cidr | default('192.168.0.0/16') }}"
       gcp_subnet_cidr: "{{ gcp_vpc_subnet | default('192.168.0.0/20') }}"
       gcp_nodeport_cidr: "{{ gcp_nodeport_cidr | default('0.0.0.0/0') }}"
       num_instances: "{{ num_instances }}"
       gcp_disk_image: "{{ gcp_disk_image }}"
-      machine_type: "{{ instance_size | default('e2-standard-4') }}"
+      machine_type: "{{ gcp_machine_type }}"
       cloud_master_volume_size: "{{ cloud_master_volume_size }}"
       cloud_worker_volume_size: "{{ cloud_worker_volume_size }}"
   register: terraform_output

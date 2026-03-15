@@ -22,10 +22,36 @@ terraform {
 }
 
 provider "google" {
-  project     = var.gcp_project
-  region      = var.gcp_region
-  zone        = var.gcp_zone
-  credentials = file(var.gcp_key)
+  project = var.gcp_project
+  region  = var.gcp_region
+  zone    = var.gcp_zone
+}
+
+# Service account used by all cluster nodes.
+# Granted compute.viewer (instance/zone lookups) and compute.loadBalancerAdmin
+# (forwarding rules, target pools, health checks, firewall rules) so the
+# Cloud Controller Manager can manage GCP load balancers.
+resource "google_service_account" "k8s-ccm" {
+  account_id   = "${var.gcp_prefix}-ccm"
+  display_name = "${var.gcp_prefix} Cloud Controller Manager"
+}
+
+resource "google_project_iam_member" "k8s-ccm-viewer" {
+  project = var.gcp_project
+  role    = "roles/compute.viewer"
+  member  = "serviceAccount:${google_service_account.k8s-ccm.email}"
+}
+
+resource "google_project_iam_member" "k8s-ccm-lb-admin" {
+  project = var.gcp_project
+  role    = "roles/compute.loadBalancerAdmin"
+  member  = "serviceAccount:${google_service_account.k8s-ccm.email}"
+}
+
+resource "google_project_iam_member" "k8s-ccm-security-admin" {
+  project = var.gcp_project
+  role    = "roles/compute.securityAdmin"
+  member  = "serviceAccount:${google_service_account.k8s-ccm.email}"
 }
 
 # Discover the public IP of the machine running terraform/ansible and restrict admin access to it.
@@ -181,6 +207,7 @@ resource "google_compute_instance" "k8s-worker-nodes" {
   }
 
   service_account {
+    email  = google_service_account.k8s-ccm.email
     scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 }
@@ -219,6 +246,7 @@ resource "google_compute_instance" "k8s-master-nodes" {
   }
 
   service_account {
+    email  = google_service_account.k8s-ccm.email
     scopes = ["https://www.googleapis.com/auth/cloud-platform"]
   }
 }

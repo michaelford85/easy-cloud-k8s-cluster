@@ -46,12 +46,6 @@ variable "gcp_instance_username" {
   default     = "ubuntu"
 }
 
-variable "gcp_key" {
-  description = "Path to the GCP service-account JSON key file used to authenticate with GCP"
-  type        = string
-  default     = "mmmm"
-}
-
 variable "gcp_project" {
   description = "The name of the GCP project that this script will operate on"
   type        = string

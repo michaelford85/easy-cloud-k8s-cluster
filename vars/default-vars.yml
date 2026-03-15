@@ -77,9 +77,9 @@ kubernetes_ignore_preflight_errors: "all"
 # See: https://github.com/kubernetes/cloud-provider-aws/releases
 aws_ccm_version: "v1.34.0"
 
-# GCP Cloud Controller Manager version.
+# GCP Cloud Controller Manager version (should match your Kubernetes minor version).
 # See: https://github.com/kubernetes/cloud-provider-gcp/releases
-gcp_ccm_version: "v29.0.0"
+gcp_ccm_version: "v34.2.0"
 
 ##### AWS-specific parameters #####
 
@@ -121,14 +121,13 @@ aws_instance_username: ubuntu
 
 ##### GCP-specific parameters #####
 
-#Local workstation serviceaccount gcp json file
-# If you choose to deploy your cluster to GCP, this variable tells the provisioner
-# where to look for your local GCP ServiceAccount json file. 
-# In order to avoid any confusion, use the absolute path.
-gcp_local_credentials_file: "/Users/michael.ford/.gcp/river-inquiry-256921-50685053a2ed.json"
+# GCP authenticates via Application Default Credentials (ADC).
+# Run the following once on your workstation before provisioning:
+#   gcloud auth application-default login \
+#     --scopes="openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/cloud-platform"
 
-#The GCP project referenced in the serviceaccount file
-gcp_project: "river-inquiry-256921"
+# The GCP project to provision resources in.
+gcp_project: "my-gcp-project"
 
 # These values determine what GCP region/zone to provision resources to.
 gcp_region: us-central1
