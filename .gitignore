@@ -13,3 +13,4 @@ roles*
 !roles/manage_k8s_nodes_gcp/files/gcp_deploy/
 !roles/manage_k8s_nodes_gcp/files/gcp_deploy/*.tf
 vars/custom-vars.yml
+.python-version

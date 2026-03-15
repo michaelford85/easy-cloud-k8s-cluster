@@ -199,6 +199,10 @@ cp vars/default-vars.yml vars/custom-vars.yml
 Key variables to set before running anything:
 
 ```yaml
+# Where SSH keys, kubeconfig, and Terraform state are stored on your local machine.
+# Default is /tmp — files there are lost on reboot. Change to a persistent path if needed.
+working_dir: /tmp
+
 cloud_provider: aws_ec2  # or gcp
 cloud_prefix: kubeadm-cluster  # prefix added to all cloud resource names
 
@@ -212,6 +216,11 @@ instance_size: large
 aws_local_credentials_file: "~/.aws/credentials"
 aws_credential_profile: "default"
 ec2_region: us-east-2
+# IMPORTANT: ec2_image_id is an AMI ID and is region-specific.
+# The default below is Ubuntu 22.04 in us-east-2.
+# If you change ec2_region, you must also update ec2_image_id to a valid AMI in that region.
+# Find Ubuntu 22.04 AMIs at: https://cloud-images.ubuntu.com/locator/ec2/
+ec2_image_id: ami-0503ed50b531cc445
 ec2_vpc_cidr: "192.168.0.0/16"
 ec2_vpc_subnet: "192.168.0.0/20"
 aws_instance_username: ubuntu
