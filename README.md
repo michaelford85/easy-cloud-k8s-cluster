@@ -419,20 +419,15 @@ Without the CCM, `LoadBalancer` services will stay in `<pending>` forever — th
 
 ```mermaid
 flowchart TD
-    CCM["Cloud Controller Manager"]
-    APIServer["kube-apiserver"]
-    Nodes["Cluster Nodes\n(tainted: uninitialized)"]
-    Svc["LoadBalancer Service\n(EXTERNAL-IP: pending)"]
-    InstanceAPI["Cloud Instance API"]
-    LBAPI["Cloud Load Balancer API"]
+    A["1  CCM watches kube-apiserver for uninitialized nodes"]
+    B["2  Looks up each node by name in the Cloud Instance API"]
+    C["3  Sets providerID on the node, removes uninitialized taint"]
+    D["4  CCM watches kube-apiserver for LoadBalancer services"]
+    E["5  Calls Cloud LB API — creates load balancer + health checks"]
+    F["6  Cloud LB API returns external IP / hostname"]
+    G["7  CCM patches the Service with EXTERNAL-IP"]
 
-    CCM -->|"1  watches for uninitialized nodes"| APIServer
-    CCM -->|"2  looks up each node by name"| InstanceAPI
-    CCM -->|"3  sets providerID, removes taint"| Nodes
-    CCM -->|"4  watches for LoadBalancer services"| Svc
-    CCM -->|"5  creates LB + health checks"| LBAPI
-    LBAPI -->|"6  returns external IP / hostname"| CCM
-    CCM -->|"7  patches service with EXTERNAL-IP"| Svc
+    A --> B --> C --> D --> E --> F --> G
 ```
 
 ## Prerequisites (already handled for you)
