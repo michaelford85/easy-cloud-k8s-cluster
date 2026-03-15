@@ -29,6 +29,19 @@ It is ideal for:
 
 ---
 
+## How It Works (High Level)
+
+You don't need to be an Ansible or Terraform expert to use this project. Here's what happens under the hood when you run the playbooks:
+
+1. **Terraform** (called by Ansible automatically) creates cloud infrastructure: a VPC, subnet, firewall rules, and VM instances.
+2. **Ansible** SSHs into those VMs and installs Kubernetes using `kubeadm`.
+3. **kubeadm** initializes the control plane on the master node and joins the worker nodes.
+4. The **kubeconfig** is copied back to your local machine so you can use `kubectl` immediately.
+
+You run three commands total. Everything else is automated.
+
+---
+
 ## Architecture Overview
 
 - **Terraform** provisions infrastructure (AWS or GCP)
@@ -41,42 +54,82 @@ It is ideal for:
 
 # Prerequisites
 
-Install locally:
+## Operating System
 
-- Python 3.9+
-- Ansible
-- Terraform >= 1.5
-- `kubectl` Command line tool
-- Cloud CLI (`aws` or `gcloud`)
-- Cloud credentials configured:
-  - **AWS**: `~/.aws/credentials` with a valid profile (configure with `aws configure`)
-  - **GCP**: Application Default Credentials — run once before provisioning:
-    ```bash
-    gcloud auth application-default login \
-      --scopes="openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/cloud-platform"
-    ```
+This project must be run from a **Linux or macOS** machine. Windows is not supported. If you are on Windows, use WSL2 with Ubuntu.
+
+## Required Tools
+
+Install the following on your local machine before proceeding:
+
+| Tool | Purpose | Install guide |
+|------|---------|---------------|
+| Python 3.9+ | Runs Ansible | [python.org](https://www.python.org/downloads/) |
+| Ansible | Orchestrates everything | Installed via pip (see below) |
+| Terraform >= 1.5 | Provisions cloud infrastructure | [developer.hashicorp.com](https://developer.hashicorp.com/terraform/install) |
+| `kubectl` | Interacts with your cluster | [kubernetes.io](https://kubernetes.io/docs/tasks/tools/) |
+| `aws` CLI or `gcloud` CLI | Cloud authentication | See below |
+
+## Cloud Credentials
+
+### AWS
+
+Configure your AWS credentials:
+
+```bash
+aws configure
+```
+
+This writes credentials to `~/.aws/credentials`. The playbooks read from there by default.
+
+### GCP
+
+Authenticate with Application Default Credentials (ADC). Run this once before provisioning:
+
+```bash
+gcloud auth application-default login \
+  --scopes="openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/cloud-platform"
+```
+
+This creates a credential file that Terraform and Ansible will automatically use — no service account key file required.
 
 ---
 
 # Installation
 
-Clone the repository:
+## Clone the repository
 
 ```bash
 git clone https://github.com/michaelford85/easy-kubeadm-k8s-cluster.git
 cd easy-kubeadm-k8s-cluster
 ```
 
-Install Ansible dependencies:
+## Set up a Python virtual environment
+
+Using a virtual environment keeps the project's Python dependencies isolated from anything else on your system, preventing version conflicts.
 
 ```bash
-ansible-galaxy install -r requirements.yml
-pip install -r requirements.txt
+# Create the virtual environment inside the repo directory
+python3 -m venv ./venv
+
+# Activate it (you'll need to do this each time you open a new terminal)
+source ./venv/bin/activate
 ```
+
+Your prompt will change to show `(venv)` when the environment is active. All subsequent `pip` and `ansible` commands will use this isolated environment.
+
+## Install Python and Ansible dependencies
+
+```bash
+pip install -r requirements.txt
+ansible-galaxy install -r requirements.yml
+```
+
+`requirements.txt` intentionally specifies no version pins — pip will install the latest compatible versions of each package. If you already have some of these packages installed in your virtual environment, pip will reuse them.
 
 Example `requirements.yml`:
 
-```
+```yaml
 ---
 roles:
   - name: geerlingguy.docker
@@ -107,22 +160,20 @@ collections:
 
 # Configuration
 
-`vars/default-vars.yml` is an example variable file. Copy it to `vars/custom-vars.yml` and edit that file:
+`vars/default-vars.yml` contains all configurable parameters with documentation. Copy it to `vars/custom-vars.yml` and edit that file — the playbooks automatically prefer `custom-vars.yml` if it exists:
 
 ```bash
 cp vars/default-vars.yml vars/custom-vars.yml
 ```
 
-The playbooks will automatically use `vars/custom-vars.yml` if it exists, otherwise they fall back to `vars/default-vars.yml`.
-
-Key variables (updated for current refactor):
+Key variables to set before running anything:
 
 ```yaml
 cloud_provider: aws_ec2  # or gcp
-cloud_prefix: kubeadm-cluster
+cloud_prefix: kubeadm-cluster  # prefix added to all cloud resource names
 
 # Kubernetes
-num_instances: 2
+num_instances: 2  # number of worker nodes (not counting the master)
 
 # AWS
 ec2_region: us-east-2
@@ -138,141 +189,111 @@ gcp_disk_image: projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts
 gcp_instance_username: ubuntu
 ```
 
-Full example:
-```
+Full annotated example:
+
+```yaml
 ---
-# This value specifies a location where all artifacts (SSH key pairs, kubeconfig, 
-# terraform state) will be placed when creating your Kubernetes cluster.
+# Directory where SSH keys, kubeconfig, and Terraform state are stored locally.
 working_dir: /tmp
 
-# This value specifies which public cloud provider to deploy resources to.
-# acceptable options: aws_ec2, gcp
+# Cloud provider to deploy to. Acceptable values: aws_ec2, gcp
 cloud_provider: aws_ec2
 
-# This value will be added to the names of all provisioned cloud resources
+# Prefix added to the names of all provisioned cloud resources
 # (instances, firewalls, security groups, etc.)
 cloud_prefix: kubeadm-cluster
 
-# This value specifies the number of kubernetes WORKER nodes;
-# set to 0 and set kubernetes_allow_pods_on_master to "yes"
-# if you desire a single node k8s cluster
+# Number of Kubernetes WORKER nodes to create.
+# Set to 0 and set kubernetes_allow_pods_on_master to "yes" for a single-node cluster.
 num_instances: 4
 
-# This value determines whether or not you allow PODs on the master node.
-# If you’d like to create a single node cluster (very helpful 
-# for saving on cloud costs), set this value to yes and set num_instances to 0.
+# Whether to allow pods to run on the master/control-plane node.
+# Useful for single-node clusters to save on cloud costs.
 kubernetes_allow_pods_on_master: no
 
-
-# This value determines what cloud instance type will be used for the worker nodes.
-# Valid values (and the resulting instance types) are:
-#    large:
-#        AWS: t3.large
-#        GCP: e2-standard-2
-#    xlarge:
-#        AWS: t3.xlarge
-#        GCP: e2-standard-4
-# instance_size: xlarge
+# Instance size for worker nodes. Valid values:
+#   large  → AWS: t3.large   / GCP: e2-standard-2
+#   xlarge → AWS: t3.xlarge  / GCP: e2-standard-4
 instance_size: large
 
-# This value determines the disk size (in GB) of the master node
+# Disk sizes in GB
 cloud_master_volume_size: 50
-
-# This value determines the disk size (in GB) of the worker node(s)
 cloud_worker_volume_size: 100
 
-##### Global kubernetes settings; regardless of cloud provider #####
+##### Kubernetes settings #####
 
-# This value determines which version of Kubernetes to provision, in 1.XX format
-# A list of all releases can be found here:
-# https://kubernetes.io/releases/
+# Kubernetes version to install (format: 1.XX)
+# See https://kubernetes.io/releases/ for available versions.
 kubernetes_version: '1.34'
 kubernetes_version_kubeadm: "v{{ kubernetes_version }}.0"
 
-# Path to the kubeadm-generated kubelet configuration file.
-# This file is created during `kubeadm init` or `kubeadm join` and defines
-# kubelet runtime configuration such as cgroup driver, cluster DNS, etc.
 kubernetes_kubeadm_kubelet_config_file_path: '/etc/kubernetes/kubeadm-kubelet-config.yaml'
 
 kubernetes_pod_network:
   cni: "calico"
   cidr: '10.0.40.0/24'
 
-#Calico manifest - grab the latest version of the manifest from:
 kubernetes_calico_manifest_file: "https://raw.githubusercontent.com/projectcalico/calico/v3.31.3/manifests/calico.yaml"
 
-# Additional arguments passed to the `kubeadm join` command.
-# Historically used to suppress specific preflight errors (e.g., Port-10250 in use).
-# NOT recommended for production use — ignoring preflight errors can hide
-# real configuration issues such as stale kubelet state or misconfigured sysctl values.
 kubernetes_join_command_extra_opts: "--ignore-preflight-errors=Port-10250"
-
-# Global kubeadm preflight error suppression.
-# When set to "all", kubeadm will ignore ALL safety checks before initialization/join.
-# Strongly discouraged outside of debugging scenarios. Leaving this enabled
-# may allow a cluster to initialize in a broken or insecure state.
 kubernetes_ignore_preflight_errors: "all"
 
 ##### AWS-specific parameters #####
 
-# If you choose to deploy your cluster to AWS, this variable tells the provisioner
-# where to look for your local AWS Programmatic credentials. If you already have
-# aws-cli installed (not required), these are typically at $HOME/.aws/credentials,
-# but you can specify elsewhere. In order to avoid any confusion, use the absolute path.
 aws_local_credentials_file: "~/.aws/credentials"
-
-# This value specifies the AWS credentials file profile (for if you have more than one set 
-# of AWS programmatic credentials in your credentials file)
 aws_credential_profile: "default"
-
-# This value determines what AWS region to provision resources to.
 ec2_region: us-east-2
-
-# Hard coded Amazon Machine Image for Ubuntu 22.04 in us-east-2 region
-ec2_image_id: ami-0503ed50b531cc445
-
-
-# Whether Terraform should wait for EC2 instances to fully initialize
-# before continuing execution. Recommended to keep enabled to avoid
-# SSH timing issues during Ansible provisioning.
+ec2_image_id: ami-0503ed50b531cc445  # Ubuntu 22.04 in us-east-2
 ec2_wait: yes
-
-# Subnet CIDR block for the Kubernetes cluster within the VPC.
-# Worker and control-plane nodes will be provisioned inside this subnet.
-# Must be contained within ec2_vpc_cidr.
 ec2_vpc_subnet: "192.168.0.0/20"
-
-# CIDR block for the entire AWS VPC created for the cluster.
-# All cluster networking (nodes + pod overlay traffic) lives within this range.
-# Ensure this does NOT overlap with your local network or other VPCs.
 ec2_vpc_cidr: "192.168.0.0/16"
-
-# Default SSH username for AWS Ubuntu AMIs.
-# This must match the base image being used (Ubuntu = ubuntu, Amazon Linux = ec2-user).
 aws_instance_username: ubuntu
 ```
 
 ---
 
+# A Note on `GODEBUG=preferIPv4=1`
+
+You will see `GODEBUG=preferIPv4=1` prepended to Ansible commands throughout this guide. Here's why:
+
+Ansible and Terraform are written in Go (or call Go binaries). On many modern Linux and macOS systems, Go programs prefer IPv6 when both IPv4 and IPv6 are available. This can cause SSH connections to cloud instances — which typically only have IPv4 addresses — to fail or time out.
+
+Setting `GODEBUG=preferIPv4=1` forces Go's network resolver to prefer IPv4 addresses. It applies only to the single command it prefixes and has no lasting effect on your system.
+
+**When to use it:** Prepend it to any `ansible-playbook` command in this guide. If your system is IPv4-only you can omit it, but it never hurts to include it.
+
+---
+
 # Provision Infrastructure
 
-After setting up your parameters, provision your instances with a playbook run:
+After configuring your variables, provision your cloud instances:
 
-`$ GODEBUG=preferIPv4=1  ansible-playbook provision-kubeadm-cluster.yml`
+```bash
+GODEBUG=preferIPv4=1 ansible-playbook provision-kubeadm-cluster.yml
+```
 
-This playbook will provision your prescribed instances in your cloud provider, and copy the public/private SSH keys to your `working_dir` (`/tmp` by default).
+This playbook runs Terraform to create:
+- A VPC and subnet
+- Firewall/security group rules (SSH restricted to your current IP)
+- The master and worker VM instances
+- An SSH key pair (saved to `working_dir`)
 
 ## Confirm Cloud Inventory
 
-You can confirm the existence of these instances without even having to log into your cloud provider’s web console, by running the `ansible-inventory` command, and specifying the appropriate dynamic inventory source (found in the repository):
+Verify that Ansible can see the newly provisioned instances by querying the dynamic inventory. Ansible's dynamic inventory reads directly from the cloud API — no manual host files needed.
 
-AWS: `./k8s.aws_ec2.yml`
-GCP: `./k8s.gcp.yml`
+```bash
+# AWS
+ansible-inventory -i k8s.aws_ec2.yml --graph
 
-An example of the command and output is here:
+# GCP
+ansible-inventory -i k8s.gcp.yml --graph
+```
+
+Example output:
+
 ```
 # AWS
-(ansible) ford@infra01:~/git-workspace/easy-cloud-k8s-cluster$ ansible-inventory -i k8s.aws_ec2.yml --graph
 @all:
   |--@ungrouped:
   |--@aws_ec2:
@@ -290,7 +311,6 @@ An example of the command and output is here:
   |  |--kubeadm-cluster-worker-2
 
 # GCP
-(ansible) ford@infra01:~/git-workspace/easy-cloud-k8s-cluster$ ansible-inventory -i k8s.gcp.yml --graph
 @all:
   |--@ungrouped:
   |--@k8s_master:
@@ -306,14 +326,15 @@ An example of the command and output is here:
 
 # Bootstrap Kubernetes
 
-Now that the instances are provisioned, you can install Kubernetes. The `bootstrap-kubeadm-cluster.yml` playbook will:
+Now that the instances are provisioned, install Kubernetes on them. The `bootstrap-kubeadm-cluster.yml` playbook will:
 
-- Install the pip3 package management system on all nodes
 - Install the containerd container runtime on all nodes
-- Install the appropriate Kubernetes components on all nodes
+- Install the Kubernetes components (`kubelet`, `kubeadm`, `kubectl`) on all nodes
+- Run `kubeadm init` on the master node to initialize the control plane
+- Run `kubeadm join` on all worker nodes
 - Copy the kubeconfig file from the master node to your local workstation
 
-Specify the appropriate dynamic inventory for your cloud provider:
+Pass the dynamic inventory file for your cloud provider:
 
 ```bash
 # AWS
@@ -323,21 +344,27 @@ GODEBUG=preferIPv4=1 ansible-playbook bootstrap-kubeadm-cluster.yml -i k8s.aws_e
 GODEBUG=preferIPv4=1 ansible-playbook bootstrap-kubeadm-cluster.yml -i k8s.gcp.yml
 ```
 
-The bootstrap process will take 2-4 minutes to complete.
+The bootstrap process takes **2–4 minutes** to complete.
 
-# Set the KUBECONFIG environment variable
+# Set the KUBECONFIG Environment Variable
 
-In order to access your Kubernetes cluster via the command line, you can set the `KUBECONFIG` environment variable to point to your newly created `/{{ working_dir }}/{{ cloud_prefix }}-config`. Using the values from our example `custom-vars.yml` file:
+Once bootstrap completes, tell `kubectl` where your new cluster's config file is. The file is written to `working_dir` (default: `/tmp`) using your `cloud_prefix` as the name:
 
-`$ export KUBECONFIG=/tmp/kubeadm-cluster-config`
+```bash
+export KUBECONFIG=/tmp/kubeadm-cluster-config
+```
 
-Alternatively, you can copy the `/{{ working_dir }}/{{ cloud_prefix }}-config` file to the locsation `~/.kube/config`; this is the default location that the `kubectl` binary looks to for kubeconfig.
+Alternatively, copy it to the default location `~/.kube/config` so `kubectl` picks it up automatically without needing to set `KUBECONFIG`:
 
-Now you can confirm both ready status of and authentication to the cluster using `kubectl`:
+```bash
+cp /tmp/kubeadm-cluster-config ~/.kube/config
+```
+
+Confirm the cluster is up and all nodes are `Ready`:
 
 AWS:
 ```
-(ansible) ford@infra01:~/git-workspace/easy-cloud-k8s-cluster$ kubectl get node
+$ kubectl get node
 NAME                                          STATUS   ROLES           AGE     VERSION
 ip-192-168-13-76.us-east-2.compute.internal   Ready    control-plane   4m16s   v1.34.5
 ip-192-168-3-69.us-east-2.compute.internal    Ready    <none>          4m4s    v1.34.5
@@ -350,7 +377,7 @@ ip-192-168-7-243.us-east-2.compute.internal   Ready    <none>          4m4s    v
 
 GCP:
 ```
-(ansible) ford@infra01:~/git-workspace/easy-cloud-k8s-cluster$ kubectl get node
+$ kubectl get node
 NAME                       STATUS   ROLES           AGE     VERSION
 kubeadm-cluster-master-1   Ready    control-plane   4m12s   v1.34.5
 kubeadm-cluster-worker-1   Ready    <none>          3m58s   v1.34.5
@@ -365,15 +392,25 @@ kubeadm-cluster-worker-4   Ready    <none>          3m55s   v1.34.5
 
 # Install Cloud Controller Manager
 
-The Cloud Controller Manager (CCM) integrates your kubeadm cluster with the native load-balancing APIs of AWS or GCP. Once installed, `LoadBalancer`-type Kubernetes Services automatically provision a real cloud load balancer and receive a public external IP.
+The Cloud Controller Manager (CCM) integrates your kubeadm cluster with the native load-balancing APIs of AWS or GCP. Once installed, `LoadBalancer`-type Kubernetes Services automatically provision a real cloud load balancer and receive a public external IP or hostname.
 
-The Terraform provisioning step already handles the prerequisites:
-- **AWS**: an IAM role and instance profile with ELB and EC2 permissions are created and attached to all nodes; VPC, subnet, and instances are tagged with `kubernetes.io/cluster/<cluster-name>: owned`.
-- **GCP**: Terraform creates a dedicated `${cloud_prefix}-ccm` GCP service account and grants it three IAM roles: `roles/compute.viewer` (instance and zone lookups), `roles/compute.loadBalancerAdmin` (forwarding rules, target pools, health checks), and `roles/compute.securityAdmin` (firewall rule creation and network policy updates). All cluster instances are launched using this service account with the `cloud-platform` OAuth scope.
+Without the CCM, `LoadBalancer` services will stay in `<pending>` forever — they need the CCM to call the cloud API and create the actual load balancer resource.
 
-## CCM versions
+## Prerequisites (already handled for you)
 
-CCM versions are set in your vars file. Both AWS and GCP CCM minor versions should match your Kubernetes minor version:
+The provisioning step handles all CCM prerequisites automatically:
+
+- **AWS**: An IAM role and instance profile with ELB and EC2 permissions are created and attached to all nodes. VPC, subnet, and instances are tagged with `kubernetes.io/cluster/<cluster-name>: owned` so the AWS CCM can discover them.
+- **GCP**: A dedicated `${cloud_prefix}-ccm` GCP service account is created by Ansible (not Terraform — this avoids GCP's 30-day service account name-reuse restriction that would block re-provisioning with the same `cloud_prefix`). The service account is granted three IAM roles:
+  - `roles/compute.viewer` — instance and zone lookups
+  - `roles/compute.loadBalancerAdmin` — forwarding rules, target pools, health checks
+  - `roles/compute.securityAdmin` — firewall rule creation and network policy updates
+
+  All cluster instances are launched with this service account attached using the `cloud-platform` OAuth scope.
+
+## CCM Versions
+
+CCM versions are set in your vars file. The CCM minor version must match your Kubernetes minor version:
 
 ```yaml
 aws_ccm_version: "v1.34.0"   # must match kubernetes_version minor
@@ -381,8 +418,6 @@ gcp_ccm_version: "v34.2.0"   # must match kubernetes_version minor
 ```
 
 ## Run
-
-Pass the appropriate dynamic inventory for your cloud provider:
 
 ```bash
 # AWS
@@ -452,7 +487,7 @@ kubectl rollout status deployment/podinfo
 kubectl get svc podinfo
 ```
 
-Expected output — on AWS, `EXTERNAL-IP` is an ELB DNS hostname; on GCP it is a bare IP:
+Expected output — on AWS, `EXTERNAL-IP` is an ELB DNS hostname; on GCP it is a bare IP address:
 
 ```
 # AWS
@@ -463,6 +498,8 @@ podinfo   LoadBalancer   10.96.55.200    a5f8cb13ce37644588614632f2684ed1-112006
 NAME      TYPE           CLUSTER-IP       EXTERNAL-IP     PORT(S)          AGE
 podinfo   LoadBalancer   10.106.188.200   35.194.31.15    9898:32015/TCP   2m
 ```
+
+> **Note:** It may take 30–60 seconds after applying the service for the cloud load balancer to be provisioned and the `EXTERNAL-IP` to appear. On AWS, the ELB hostname may take an additional minute to resolve in DNS after it first appears. If `EXTERNAL-IP` shows `<pending>`, wait a moment and re-run `kubectl get svc podinfo`.
 
 ## Access the deployment
 
@@ -509,33 +546,36 @@ Expected output showing different pods serving each request:
 
 You can also open `http://<EXTERNAL-IP>:9898` in a browser to see the podinfo web UI.
 
-> **Note:** It may take 30–60 seconds after applying the service for the cloud load balancer to be provisioned and the `EXTERNAL-IP` to appear. On AWS, the ELB hostname may take an additional minute to resolve in DNS after it first appears.
-
 ---
 
 # Teardown
 
-After you’re done with your session, tearing down your cluster takes a single playbook command:
+When you're done, tear down all cloud infrastructure with a single command:
 
 ```bash
-$ ansible-playbook teardown-kubeadm-cluster.yml
+ansible-playbook teardown-kubeadm-cluster.yml
 ```
 
-This process should take no more than 2 minutes.
-Destroy infrastructure:
+This process takes about 2 minutes. The teardown playbook:
 
-The teardown playbook first deletes any `LoadBalancer`-type Kubernetes services and waits for the CCM to deprovision the associated cloud load balancers (AWS ELB / GCP Network LB) before running `terraform destroy`. This prevents orphaned load balancer resources and avoids Terraform failures caused by cloud-managed security groups still attached to VPC resources.
+1. Deletes any `LoadBalancer`-type Kubernetes services and waits for the CCM to deprovision the associated cloud load balancers (AWS ELB / GCP Network LB)
+2. Runs `terraform destroy` to remove all cloud resources
+
+Waiting for load balancers to drain before destroying the VPC prevents orphaned cloud resources and Terraform failures caused by in-use network dependencies.
+
+> **Re-provisioning with the same `cloud_prefix`:** After teardown, you can immediately re-run `provision-kubeadm-cluster.yml` with the same `cloud_prefix`. On GCP, the CCM service account persists across teardown/re-provision cycles by design — this avoids GCP's 30-day name-reuse restriction on deleted service accounts.
 
 ---
 
 # Notes & Best Practices
 
-- SSH access is restricted to the control machine public IP.
-- containerd is configured with systemd cgroup driver.
-- sysctl `net.ipv4.ip_forward` is enabled automatically.
-- Use image families (e.g., ubuntu-2204-lts) instead of pinned image versions.
-- Use dedicated IAM roles / service accounts with least privilege.
+- SSH access to cluster nodes is automatically restricted to your current machine's public IP.
+- containerd is configured with the systemd cgroup driver (required for Kubernetes).
+- `net.ipv4.ip_forward` is enabled automatically on all nodes.
+- Use image families (e.g., `ubuntu-2204-lts`) instead of pinned image IDs — image families always resolve to the latest patched image.
+- IAM roles and service accounts are scoped with least privilege.
 - Avoid `--ignore-preflight-errors` in production environments.
+- Remember to `source ./venv/bin/activate` in each new terminal session before running Ansible commands.
 
 ---
 
@@ -543,13 +583,18 @@ The teardown playbook first deletes any `LoadBalancer`-type Kubernetes services 
 
 ```
 roles/
-  manage_k8s_nodes_aws/
-  manage_k8s_nodes_gcp/
+  manage_k8s_nodes_aws/     # Terraform provisioning tasks for AWS
+  manage_k8s_nodes_gcp/     # Terraform provisioning tasks for GCP
 vars/
-  default-vars.yml
-terraform/
-  aws_deploy/
-  gcp_deploy/
+  default-vars.yml           # All variables with documentation (copy → custom-vars.yml)
+  custom-vars.yml            # Your overrides (git-ignored)
+provision-kubeadm-cluster.yml
+bootstrap-kubeadm-cluster.yml
+install-cloud-ccm.yml
+teardown-kubeadm-cluster.yml
+podinfo.yml
+requirements.txt
+requirements.yml
 ```
 
 ---
