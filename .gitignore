@@ -1,6 +1,15 @@
 *.vagrant
 .DS_Store
 *.retry
-roles*
 collections*
 log
+roles*
+!roles/manage_k8s_nodes_aws/
+!roles/manage_k8s_nodes_aws/files/
+!roles/manage_k8s_nodes_aws/files/aws_deploy/
+!roles/manage_k8s_nodes_aws/files/aws_deploy/*.tf
+!roles/manage_k8s_nodes_gcp/
+!roles/manage_k8s_nodes_gcp/files/
+!roles/manage_k8s_nodes_gcp/files/gcp_deploy/
+!roles/manage_k8s_nodes_gcp/files/gcp_deploy/*.tf
+vars/custom-vars.yml

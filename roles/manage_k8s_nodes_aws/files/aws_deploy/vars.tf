@@ -51,3 +51,21 @@ variable "aws_profile" {
   type        = string
   default     = "xxxx"
 }
+
+variable "ec2_vpc_cidr" {
+  description = "CIDR block for the Kubernetes VPC"
+  type        = string
+  default     = "192.168.0.0/16"
+}
+
+variable "ec2_subnet_cidr" {
+  description = "CIDR block for the Kubernetes public subnet"
+  type        = string
+  default     = "192.168.0.0/20"
+}
+
+variable "master_machine_type" {
+  description = "The instance type to use for the Kubernetes control-plane node"
+  type        = string
+  default     = "t3.xlarge"
+}

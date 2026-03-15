@@ -1,0 +1,358 @@
+---
+- name: Install Cloud Controller Manager
+  hosts: k8s_master
+  gather_facts: no
+  become: yes
+  vars_files:
+    - "{{ lookup('first_found', ['./vars/custom-vars.yml', './vars/default-vars.yml']) }}"
+
+  tasks:
+
+    # ---- AWS Cloud Controller Manager ----------------------------------------
+
+    - name: Deploy AWS Cloud Controller Manager
+      when: cloud_provider == "aws_ec2"
+      block:
+
+        - name: Apply AWS CCM ServiceAccount and RBAC
+          ansible.builtin.shell:
+            cmd: |
+              kubectl apply -f - <<'EOF'
+              apiVersion: v1
+              kind: ServiceAccount
+              metadata:
+                name: cloud-controller-manager
+                namespace: kube-system
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: RoleBinding
+              metadata:
+                name: cloud-controller-manager:apiserver-authentication-reader
+                namespace: kube-system
+              roleRef:
+                apiGroup: rbac.authorization.k8s.io
+                kind: Role
+                name: extension-apiserver-authentication-reader
+              subjects:
+              - kind: ServiceAccount
+                name: cloud-controller-manager
+                namespace: kube-system
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: ClusterRole
+              metadata:
+                name: system:cloud-controller-manager
+                annotations:
+                  rbac.authorization.kubernetes.io/autoupdate: "true"
+                labels:
+                  k8s-app: aws-cloud-controller-manager
+              rules:
+              - apiGroups: [""]
+                resources: [events]
+                verbs: [create, patch, update]
+              - apiGroups: [""]
+                resources: [nodes]
+                verbs: ["*"]
+              - apiGroups: [""]
+                resources: [nodes/status]
+                verbs: [patch]
+              - apiGroups: [""]
+                resources: [services]
+                verbs: [list, patch, update, watch]
+              - apiGroups: [""]
+                resources: [services/status]
+                verbs: [list, patch, update, watch]
+              - apiGroups: [""]
+                resources: [serviceaccounts]
+                verbs: [create]
+              - apiGroups: [""]
+                resources: [persistentvolumes]
+                verbs: [get, list, update, watch]
+              - apiGroups: [""]
+                resources: [endpoints]
+                verbs: [create, get, list, update, watch]
+              - apiGroups: [coordination.k8s.io]
+                resources: [leases]
+                verbs: [create, get, list, update, watch]
+              - apiGroups: [""]
+                resources: [serviceaccounts/token]
+                verbs: [create]
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: ClusterRoleBinding
+              metadata:
+                name: system:cloud-controller-manager
+              roleRef:
+                apiGroup: rbac.authorization.k8s.io
+                kind: ClusterRole
+                name: system:cloud-controller-manager
+              subjects:
+              - kind: ServiceAccount
+                name: cloud-controller-manager
+                namespace: kube-system
+              EOF
+
+        - name: Apply AWS CCM DaemonSet
+          ansible.builtin.shell:
+            cmd: |
+              kubectl apply -f - <<'EOF'
+              apiVersion: apps/v1
+              kind: DaemonSet
+              metadata:
+                name: aws-cloud-controller-manager
+                namespace: kube-system
+                labels:
+                  k8s-app: aws-cloud-controller-manager
+              spec:
+                selector:
+                  matchLabels:
+                    k8s-app: aws-cloud-controller-manager
+                updateStrategy:
+                  type: RollingUpdate
+                template:
+                  metadata:
+                    labels:
+                      k8s-app: aws-cloud-controller-manager
+                  spec:
+                    nodeSelector:
+                      node-role.kubernetes.io/control-plane: ""
+                    tolerations:
+                    - key: node-role.kubernetes.io/control-plane
+                      effect: NoSchedule
+                    - key: node.cloudprovider.kubernetes.io/uninitialized
+                      value: "true"
+                      effect: NoSchedule
+                    serviceAccountName: cloud-controller-manager
+                    hostNetwork: true
+                    priorityClassName: system-cluster-critical
+                    containers:
+                    - name: aws-cloud-controller-manager
+                      image: registry.k8s.io/provider-aws/cloud-controller-manager:{{ aws_ccm_version }}
+                      args:
+                      - --v=2
+                      - --cloud-provider=aws
+                      - --cluster-name={{ cloud_prefix }}
+                      - --controllers=*,-node-route-controller
+                      resources:
+                        requests:
+                          cpu: 200m
+                      volumeMounts:
+                      - mountPath: /etc/kubernetes/pki
+                        name: k8s-certs
+                        readOnly: true
+                    volumes:
+                    - hostPath:
+                        path: /etc/kubernetes/pki
+                      name: k8s-certs
+              EOF
+
+        - name: Wait for AWS CCM DaemonSet to be ready
+          ansible.builtin.command:
+            cmd: kubectl rollout status daemonset/aws-cloud-controller-manager -n kube-system --timeout=120s
+
+        - name: Taint uninitialized nodes to trigger CCM node initialization
+          ansible.builtin.shell:
+            cmd: |
+              kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.providerID}{"\n"}{end}' | \
+                awk '$2=="" {print $1}' | \
+                xargs -r -I {} kubectl taint node {} --overwrite \
+                  node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule
+
+        - name: Wait for CCM to set providerID on all nodes
+          ansible.builtin.shell:
+            cmd: |
+              TOTAL=$(kubectl get nodes --no-headers | wc -l)
+              DONE=$(kubectl get nodes -o jsonpath='{range .items[*]}{.spec.providerID}{"\n"}{end}' | grep -vc '^$')
+              [ "$DONE" -eq "$TOTAL" ]
+          register: wait_providerid
+          until: wait_providerid.rc == 0
+          retries: 30
+          delay: 10
+
+    # ---- GCP Cloud Controller Manager ----------------------------------------
+
+    - name: Deploy GCP Cloud Controller Manager
+      when: cloud_provider == "gcp"
+      block:
+
+        - name: Apply GCP CCM ServiceAccount and RBAC
+          ansible.builtin.shell:
+            cmd: |
+              kubectl apply -f - <<'EOF'
+              apiVersion: v1
+              kind: ServiceAccount
+              metadata:
+                name: cloud-controller-manager
+                namespace: kube-system
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: RoleBinding
+              metadata:
+                name: cloud-controller-manager:apiserver-authentication-reader
+                namespace: kube-system
+              roleRef:
+                apiGroup: rbac.authorization.k8s.io
+                kind: Role
+                name: extension-apiserver-authentication-reader
+              subjects:
+              - kind: ServiceAccount
+                name: cloud-controller-manager
+                namespace: kube-system
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: ClusterRole
+              metadata:
+                name: system:cloud-controller-manager
+                annotations:
+                  rbac.authorization.kubernetes.io/autoupdate: "true"
+                labels:
+                  k8s-app: gcp-cloud-controller-manager
+              rules:
+              - apiGroups: [""]
+                resources: [events]
+                verbs: [create, patch, update]
+              - apiGroups: [""]
+                resources: [nodes]
+                verbs: ["*"]
+              - apiGroups: [""]
+                resources: [nodes/status]
+                verbs: [patch]
+              - apiGroups: [""]
+                resources: [services]
+                verbs: [list, patch, update, watch]
+              - apiGroups: [""]
+                resources: [services/status]
+                verbs: [list, patch, update, watch]
+              - apiGroups: [""]
+                resources: [serviceaccounts]
+                verbs: [create, get]
+              - apiGroups: [""]
+                resources: [persistentvolumes]
+                verbs: [get, list, update, watch]
+              - apiGroups: [""]
+                resources: [endpoints]
+                verbs: [create, get, list, update, watch]
+              - apiGroups: [""]
+                resources: [configmaps]
+                verbs: [create, get, list, update, watch]
+              - apiGroups: [coordination.k8s.io]
+                resources: [leases]
+                verbs: [create, get, list, update, watch]
+              - apiGroups: [""]
+                resources: [serviceaccounts/token]
+                verbs: [create]
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: ClusterRoleBinding
+              metadata:
+                name: system:cloud-controller-manager
+              roleRef:
+                apiGroup: rbac.authorization.k8s.io
+                kind: ClusterRole
+                name: system:cloud-controller-manager
+              subjects:
+              - kind: ServiceAccount
+                name: cloud-controller-manager
+                namespace: kube-system
+              EOF
+
+        - name: Apply GCP CCM cloud-config ConfigMap
+          ansible.builtin.shell:
+            cmd: |
+              kubectl apply -f - <<'EOF'
+              apiVersion: v1
+              kind: ConfigMap
+              metadata:
+                name: gce-config
+                namespace: kube-system
+              data:
+                gce.conf: |
+                  [global]
+                  project-id = {{ gcp_project }}
+                  network-name = {{ cloud_prefix }}-vpc
+                  node-tags = k8s-role
+              EOF
+
+        - name: Apply GCP CCM DaemonSet
+          ansible.builtin.shell:
+            cmd: |
+              kubectl apply -f - <<'EOF'
+              apiVersion: apps/v1
+              kind: DaemonSet
+              metadata:
+                name: gcp-cloud-controller-manager
+                namespace: kube-system
+                labels:
+                  k8s-app: gcp-cloud-controller-manager
+              spec:
+                selector:
+                  matchLabels:
+                    k8s-app: gcp-cloud-controller-manager
+                updateStrategy:
+                  type: RollingUpdate
+                template:
+                  metadata:
+                    labels:
+                      k8s-app: gcp-cloud-controller-manager
+                  spec:
+                    nodeSelector:
+                      node-role.kubernetes.io/control-plane: ""
+                    tolerations:
+                    - key: node-role.kubernetes.io/control-plane
+                      effect: NoSchedule
+                    - key: node.cloudprovider.kubernetes.io/uninitialized
+                      value: "true"
+                      effect: NoSchedule
+                    serviceAccountName: cloud-controller-manager
+                    hostNetwork: true
+                    priorityClassName: system-cluster-critical
+                    containers:
+                    - name: cloud-controller-manager
+                      image: registry.k8s.io/cloud-provider-gcp/cloud-controller-manager:{{ gcp_ccm_version }}
+                      command: [/cloud-controller-manager]
+                      args:
+                      - --v=2
+                      - --cloud-provider=gce
+                      - --cloud-config=/etc/gce/gce.conf
+                      - --controllers=*,-route,-node-ipam-controller
+                      resources:
+                        requests:
+                          cpu: 200m
+                      volumeMounts:
+                      - mountPath: /etc/kubernetes/pki
+                        name: k8s-certs
+                        readOnly: true
+                      - mountPath: /etc/gce
+                        name: gce-config
+                        readOnly: true
+                    volumes:
+                    - hostPath:
+                        path: /etc/kubernetes/pki
+                      name: k8s-certs
+                    - configMap:
+                        name: gce-config
+                      name: gce-config
+              EOF
+
+        - name: Wait for GCP CCM DaemonSet to be ready
+          ansible.builtin.command:
+            cmd: kubectl rollout status daemonset/gcp-cloud-controller-manager -n kube-system --timeout=120s
+
+        - name: Taint uninitialized nodes to trigger CCM node initialization
+          ansible.builtin.shell:
+            cmd: |
+              kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.providerID}{"\n"}{end}' | \
+                awk '$2=="" {print $1}' | \
+                xargs -r -I {} kubectl taint node {} --overwrite \
+                  node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule
+
+        - name: Wait for CCM to set providerID on all nodes
+          ansible.builtin.shell:
+            cmd: |
+              TOTAL=$(kubectl get nodes --no-headers | wc -l)
+              DONE=$(kubectl get nodes -o jsonpath='{range .items[*]}{.spec.providerID}{"\n"}{end}' | grep -vc '^$')
+              [ "$DONE" -eq "$TOTAL" ]
+          register: wait_providerid
+          until: wait_providerid.rc == 0
+          retries: 30
+          delay: 10

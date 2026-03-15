@@ -1,14 +1,12 @@
 plugin: google.cloud.gcp_compute
-#Ensure this field points to the local service account json file
-service_account_file: "/Users/mford/.gcp/gcp-creds.json"
-auth_kind: serviceaccount
+auth_kind: application
 projects:
-#Replace with the name of your project
-- "eloquent-theme-264620"
+# Replace with your GCP project name
+- "river-inquiry-256921"
 zones:
   - us-central1-a
 keyed_groups:
-  - key: labels
+  - key: labels.role
     prefix: k8s
 hostnames:
   - name

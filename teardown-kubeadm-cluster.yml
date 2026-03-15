@@ -4,9 +4,34 @@
   connection: local
   gather_facts: no
   vars_files:
-    - ./vars/default-vars.yml
+    - "{{ lookup('first_found', ['./vars/custom-vars.yml', './vars/default-vars.yml']) }}"
 
   tasks:
+
+    - name: Delete all LoadBalancer services so the CCM removes cloud load balancers before Terraform runs
+      ansible.builtin.shell:
+        cmd: |
+          export KUBECONFIG={{ working_dir }}/{{ cloud_prefix }}-config
+          kubectl get svc --all-namespaces -o json | \
+            jq -r '.items[] | select(.spec.type=="LoadBalancer") | "\(.metadata.namespace) \(.metadata.name)"' | \
+            while read ns name; do
+              echo "Deleting LoadBalancer service $ns/$name"
+              kubectl delete svc -n "$ns" "$name"
+            done
+      ignore_errors: yes
+
+    - name: Wait for cloud load balancers to be deprovisioned by the CCM
+      ansible.builtin.shell:
+        cmd: |
+          export KUBECONFIG={{ working_dir }}/{{ cloud_prefix }}-config
+          kubectl get svc --all-namespaces -o json | \
+            jq -r '.items[] | select(.spec.type=="LoadBalancer") | .metadata.name' | \
+            wc -l
+      register: lb_count
+      until: lb_count.stdout | trim == "0"
+      retries: 18
+      delay: 10
+      ignore_errors: yes
 
     - name: Teardown GCP infrastructure via Terraform
       ansible.builtin.include_role:

@@ -1,0 +1,8 @@
+ansible-core
+boto3
+botocore
+botocore[crt]
+google-auth
+requests
+kubernetes
+PyYAML
