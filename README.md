@@ -53,30 +53,20 @@ You run three commands total. Everything else is automated.
 ```mermaid
 flowchart TD
     Local["Local Machine\n(Ansible + Terraform + kubectl)"]
+    Instances["VM Instances\n(Master + Workers)"]
+    APIServer["kube-apiserver\n(control plane)"]
+    CCM["Cloud Controller Manager"]
+    CloudAPI["Cloud Provider API"]
+    LB["Load Balancer\n(ELB / GCP Network LB)"]
+    Pods["Application Pods"]
 
-    subgraph cloud["Cloud Provider (AWS / GCP)"]
-        CloudAPI["Cloud Provider API"]
-        LB["Load Balancer\n(ELB / GCP Network LB)"]
-        Instances["VM Instances\n(Master + Workers)"]
-    end
-
-    subgraph cluster["Kubernetes Cluster"]
-        APIServer["kube-apiserver\n(control plane)"]
-        CCM["Cloud Controller Manager\n(kube-system DaemonSet)"]
-        Pods["Application Pods\n(worker nodes)"]
-        Svc["LoadBalancer Service"]
-    end
-
-    Local -->|"1 · terraform apply\nprovisions VPC + VMs"| Instances
-    Local -->|"2 · ansible SSH\nkubeadm init / join"| APIServer
-    Local -->|"3 · kubectl apply"| Svc
-
-    CCM -->|"watches nodes\nsets providerID"| APIServer
-    CCM -->|"instance + zone lookups"| CloudAPI
-    Svc -->|"new LB service\ntriggers reconciliation"| CCM
-    CCM -->|"creates / manages\nload balancer"| CloudAPI
-    CloudAPI --> LB
-    LB -->|"routes external traffic"| Pods
+    Local      -->|"1  terraform apply — provisions VPC + VMs"| Instances
+    Instances  -->|"2  ansible SSH — kubeadm init / join"| APIServer
+    Local      -->|"3  kubectl apply — creates LoadBalancer Service"| CCM
+    CCM        -->|"4  looks up nodes, sets providerID"| APIServer
+    CCM        -->|"5  creates load balancer"| CloudAPI
+    CloudAPI   -->|"6  provisions"| LB
+    LB         -->|"7  routes external traffic"| Pods
 ```
 
 ---
@@ -428,28 +418,21 @@ Without the CCM, `LoadBalancer` services will stay in `<pending>` forever — th
 ## How the CCM Works
 
 ```mermaid
-flowchart LR
-    subgraph cluster["Kubernetes Cluster"]
-        direction TB
-        APIServer["kube-apiserver"]
-        CCM["Cloud Controller Manager\n(kube-system DaemonSet)"]
-        Node["Cluster Nodes\n(tainted: uninitialized)"]
-        Svc["LoadBalancer Service\n(EXTERNAL-IP pending)"]
-    end
+flowchart TD
+    CCM["Cloud Controller Manager"]
+    APIServer["kube-apiserver"]
+    Nodes["Cluster Nodes\n(tainted: uninitialized)"]
+    Svc["LoadBalancer Service\n(EXTERNAL-IP: pending)"]
+    InstanceAPI["Cloud Instance API"]
+    LBAPI["Cloud Load Balancer API"]
 
-    subgraph cloud["Cloud Provider API"]
-        direction TB
-        InstanceAPI["Instance / Zone API\n(node lookup)"]
-        LBAPI["Load Balancer API\n(ELB / Network LB)"]
-    end
-
-    CCM -->|"1 · watches for\nuninitialized nodes"| APIServer
-    CCM -->|"2 · looks up instance\nby node name"| InstanceAPI
-    CCM -->|"3 · sets providerID\nremoves taint"| Node
-    CCM -->|"4 · watches for\nLoadBalancer services"| Svc
-    CCM -->|"5 · creates LB +\nhealth checks"| LBAPI
-    LBAPI -->|"6 · returns external\nIP / hostname"| CCM
-    CCM -->|"7 · patches service\nwith EXTERNAL-IP"| Svc
+    CCM -->|"1  watches for uninitialized nodes"| APIServer
+    CCM -->|"2  looks up each node by name"| InstanceAPI
+    CCM -->|"3  sets providerID, removes taint"| Nodes
+    CCM -->|"4  watches for LoadBalancer services"| Svc
+    CCM -->|"5  creates LB + health checks"| LBAPI
+    LBAPI -->|"6  returns external IP / hostname"| CCM
+    CCM -->|"7  patches service with EXTERNAL-IP"| Svc
 ```
 
 ## Prerequisites (already handled for you)
@@ -532,42 +515,13 @@ Once the CCM has provisioned the cloud load balancer, external traffic flows lik
 ```mermaid
 flowchart TD
     Client["External Client\n(curl / browser)"]
+    LB["Cloud Load Balancer\n(ELB / GCP Network LB)\nexternal IP or hostname"]
+    NodePorts["NodePort on each Worker Node\n(same port, all nodes)"]
+    Pods["podinfo Pods\n(spread across worker nodes)"]
 
-    subgraph cloud["Cloud Provider"]
-        LB["Load Balancer\n(ELB / GCP Network LB)\nexternal IP or hostname"]
-        HC["Health Checks\n(probes NodePort on each node)"]
-    end
-
-    subgraph cluster["Kubernetes Cluster"]
-        Svc["LoadBalancer Service\n(podinfo · port 9898)"]
-
-        subgraph n1["Worker Node 1"]
-            np1["NodePort\n:3xxxx"]
-            pod1a["podinfo Pod"]
-            pod1b["podinfo Pod"]
-        end
-
-        subgraph n2["Worker Node 2"]
-            np2["NodePort\n:3xxxx"]
-            pod2a["podinfo Pod"]
-        end
-
-        subgraph n3["Worker Node N"]
-            np3["NodePort\n:3xxxx"]
-        end
-    end
-
-    Client -->|"HTTP :9898\nto external IP"| LB
-    LB -->|"round-robin across\nhealthy nodes"| np1
-    LB -->|""| np2
-    LB -->|""| np3
-    HC -. "periodic probe" .-> np1
-    HC -. "periodic probe" .-> np2
-    HC -. "periodic probe" .-> np3
-    np1 -->|"kube-proxy routes\nto local or remote pod"| pod1a
-    np1 --> pod1b
-    np2 -->|"kube-proxy routes\nto local or remote pod"| pod2a
-    np2 --> pod1a
+    Client    -->|"HTTP :9898 to external IP"| LB
+    LB        -->|"round-robins across healthy nodes\nchecked via periodic health probes"| NodePorts
+    NodePorts -->|"kube-proxy iptables rules\nforward to any matching pod"| Pods
 ```
 
 > **Note:** kube-proxy installs iptables rules on each node so that any NodePort can forward to *any* pod in the Service — not just pods local to that node. This is why running repeated `curl` requests shows different `hostname` values even if the load balancer only hits one node.
