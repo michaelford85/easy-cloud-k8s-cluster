@@ -17,6 +17,43 @@ This project automates:
 
 ---
 
+## Table of Contents
+
+- [Why This Project Exists](#why-this-project-exists)
+- [How It Works (High Level)](#how-it-works-high-level)
+- [Architecture Overview](#architecture-overview)
+- [Prerequisites](#prerequisites)
+  - [Operating System](#operating-system)
+  - [Required Tools](#required-tools)
+  - [Cloud Credentials](#cloud-credentials)
+- [Installation](#installation)
+  - [Clone the repository](#clone-the-repository)
+  - [Set up a Python virtual environment](#set-up-a-python-virtual-environment)
+  - [Install Python and Ansible dependencies](#install-python-and-ansible-dependencies)
+- [Configuration](#configuration)
+- [A Note on `GODEBUG=preferIPv4=1`](#a-note-on-godebugpreferipv41)
+- [Provision Infrastructure](#provision-infrastructure)
+  - [Confirm Cloud Inventory](#confirm-cloud-inventory)
+- [Bootstrap Kubernetes](#bootstrap-kubernetes)
+- [Set the KUBECONFIG Environment Variable](#set-the-kubeconfig-environment-variable)
+- [Install Cloud Controller Manager](#install-cloud-controller-manager)
+  - [How the CCM Works](#how-the-ccm-works)
+  - [Prerequisites (already handled for you)](#prerequisites-already-handled-for-you)
+  - [CCM Versions](#ccm-versions)
+  - [Run](#run)
+  - [Verify](#verify)
+- [Test Deployment with podinfo](#test-deployment-with-podinfo)
+  - [Traffic Flow](#traffic-flow)
+  - [Deploy](#deploy)
+  - [Check the assigned LoadBalancer IP](#check-the-assigned-loadbalancer-ip)
+  - [Access the deployment](#access-the-deployment)
+  - [Confirm load balancing](#confirm-load-balancing)
+- [Teardown](#teardown)
+- [Notes & Best Practices](#notes--best-practices)
+- [License](#license)
+
+---
+
 ## Why This Project Exists
 
 This repository provides a simple, reproducible way to stand up a real
@@ -99,6 +136,8 @@ aws configure
 
 This writes credentials to `~/.aws/credentials`. The playbooks read from there by default.
 
+> **Permissions required:** Your AWS IAM user or role must have permissions to create and manage EC2 instances, VPCs, security groups, IAM roles and instance profiles, and Elastic Load Balancers. An account with `AdministratorAccess` covers everything. For a least-privilege setup you'll need policies covering the EC2, VPC, IAM, and ELB APIs — the exact policy is outside the scope of this README.
+
 ### GCP
 
 Authenticate with Application Default Credentials (ADC). Run this once before provisioning:
@@ -109,6 +148,8 @@ gcloud auth application-default login \
 ```
 
 This creates a credential file that Terraform and Ansible will automatically use — no service account key file required.
+
+> **Permissions required:** Your GCP account must have permissions to create Compute Engine instances, VPCs, firewall rules, IAM service accounts, and manage project-level IAM policy bindings. The `Owner` or `Editor` role covers all of this. For a least-privilege setup you'll need roles covering Compute Engine, IAM, and Service Account administration — the exact role set is outside the scope of this README.
 
 ---
 
