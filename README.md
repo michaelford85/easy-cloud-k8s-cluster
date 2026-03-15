@@ -185,34 +185,6 @@ ansible-galaxy install -r requirements.yml
 
 `requirements.txt` intentionally specifies no version pins — pip will install the latest compatible versions of each package. If you already have some of these packages installed in your virtual environment, pip will reuse them.
 
-Example `requirements.yml`:
-
-```yaml
----
-roles:
-  - name: geerlingguy.docker
-    version: 8.0.0
-  - name: geerlingguy.pip
-    version: 3.1.2
-  - name: geerlingguy.kubernetes
-    version: 8.2.0
-  - name: geerlingguy.containerd
-    version: 1.4.1
-
-collections:
-  - name: amazon.aws
-    version: 11.1.0
-  - name: community.aws
-    version: 11.0.0
-  - name: google.cloud
-    version: 1.11.0
-  - name: community.general
-    version: 12.3.0
-  - name: kubernetes.core
-    version: 6.3.0
-  - name: ansible.posix
-    version: 2.1.0
-```
 
 ---
 
@@ -231,13 +203,19 @@ cloud_provider: aws_ec2  # or gcp
 cloud_prefix: kubeadm-cluster  # prefix added to all cloud resource names
 
 # Kubernetes
+kubernetes_version: '1.34'
 num_instances: 2  # number of worker nodes (not counting the master)
+kubernetes_allow_pods_on_master: no
+instance_size: large
 
 # AWS
+aws_local_credentials_file: "~/.aws/credentials"
+aws_credential_profile: "default"
 ec2_region: us-east-2
 ec2_vpc_cidr: "192.168.0.0/16"
 ec2_vpc_subnet: "192.168.0.0/20"
 aws_instance_username: ubuntu
+aws_ccm_version: "v1.34.0"
 
 # GCP
 gcp_project: your-project-id
@@ -245,6 +223,7 @@ gcp_region: us-central1
 gcp_zone: us-central1-a
 gcp_disk_image: projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts
 gcp_instance_username: ubuntu
+gcp_ccm_version: "v34.2.0"
 ```
 
 Full annotated example:
