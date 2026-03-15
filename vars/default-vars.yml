@@ -96,7 +96,10 @@ aws_credential_profile: "default"
 # This value determines what AWS region to provision resources to.
 ec2_region: us-east-2
 
-# Hard coded Amazon Machine Image for Ubuntu 22.04 in us-east-2 region
+# AMI ID for the EC2 instance base image. AMI IDs are region-specific —
+# the value below is Ubuntu 22.04 LTS in us-east-2.
+# If you change ec2_region, you must update this value to a valid AMI in that region.
+# Find Ubuntu 22.04 AMIs at: https://cloud-images.ubuntu.com/locator/ec2/
 ec2_image_id: ami-0503ed50b531cc445
 
 
@@ -133,7 +136,11 @@ gcp_project: "my-gcp-project"
 gcp_region: us-central1
 gcp_zone: us-central1-a
 
-# Hard coded GCP Image for Ubuntu 22.04
+# GCP disk image for VM instances. Unlike AWS AMIs, GCP image families are global —
+# this value works in any region without modification.
+# The family reference always resolves to the latest patched image in that family,
+# so you get security updates automatically on each new provision.
+# Browse available image families at: https://cloud.google.com/compute/docs/images/os-details
 gcp_disk_image: projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts
 
 
