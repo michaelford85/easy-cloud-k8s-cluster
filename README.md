@@ -1,5 +1,9 @@
 # easy-kubeadm-k8s-cluster
 
+<p align="center">
+  <img width="200" title="Kubernetes Logo" src="images/k8s_logo_with_border.png">
+</p>
+
 Provision a Kubernetes cluster on AWS or GCP using **Terraform** for infrastructure
 and **Ansible + kubeadm** for cluster bootstrap.
 
