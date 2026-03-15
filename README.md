@@ -44,12 +44,6 @@ You run three commands total. Everything else is automated.
 
 ## Architecture Overview
 
-- **Terraform** provisions infrastructure (AWS or GCP)
-- **Ansible** configures instances
-- **kubeadm** initializes the control plane and joins workers
-- **containerd** is used as the container runtime
-- kubeconfig is exported locally for cluster access
-
 ```mermaid
 flowchart TD
     Local["Local Machine\n(Ansible + Terraform + kubectl)"]
@@ -628,26 +622,6 @@ Waiting for load balancers to drain before destroying the VPC prevents orphaned 
 - IAM roles and service accounts are scoped with least privilege.
 - Avoid `--ignore-preflight-errors` in production environments.
 - Remember to `source ./venv/bin/activate` in each new terminal session before running Ansible commands.
-
----
-
-# Project Structure
-
-```
-roles/
-  manage_k8s_nodes_aws/     # Terraform provisioning tasks for AWS
-  manage_k8s_nodes_gcp/     # Terraform provisioning tasks for GCP
-vars/
-  default-vars.yml           # All variables with documentation (copy → custom-vars.yml)
-  custom-vars.yml            # Your overrides (git-ignored)
-provision-kubeadm-cluster.yml
-bootstrap-kubeadm-cluster.yml
-install-cloud-ccm.yml
-teardown-kubeadm-cluster.yml
-podinfo.yml
-requirements.txt
-requirements.yml
-```
 
 ---
 
